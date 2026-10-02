@@ -11,6 +11,12 @@
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   document.title = appTitle;
+  const manifestLink = document.querySelector('link[rel="manifest"]');
+  if (manifestLink) manifestLink.href = teacherMode ? './manifest-teacher.webmanifest' : './manifest-student.webmanifest';
+  const touchIcon = document.querySelector('link[rel="apple-touch-icon"]');
+  if (touchIcon) touchIcon.href = teacherMode ? './teacher-icon.svg' : './app-icon.svg';
+  const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (appleTitle) appleTitle.content = appTitle;
   installButton.title = teacherMode ? 'Öğretmen uygulamasını ana ekrana ekle' : 'Öğrenci uygulamasını ana ekrana ekle';
   installButton.setAttribute('aria-label', installButton.title);
   document.getElementById('installHelpTitle').textContent = teacherMode
