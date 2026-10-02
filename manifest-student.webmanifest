@@ -1,6 +1,6 @@
 {
-  "id": "./",
-  "name": "Yıldız Yarışları",
+  "id": "./?student=1",
+  "name": "Yıldız Yarışları Öğrenci",
   "short_name": "Yıldız Yarışları",
   "description": "Öğren, yıldızları topla ve yarışta ilerle.",
   "lang": "tr",
@@ -11,11 +11,6 @@
   "background_color": "#111936",
   "theme_color": "#111936",
   "icons": [
-    {
-      "src": "./app-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "./app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
 }

@@ -1,6 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {
   getAuth,
+  browserLocalPersistence,
+  browserSessionPersistence,
   inMemoryPersistence,
   onAuthStateChanged,
   setPersistence,
@@ -11,11 +13,11 @@ import {
 import { getDatabase, onValue, ref, set } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
 import { firebaseConfig, teacherEmail } from "./firebase-config.js";
 
-const app = initializeApp(firebaseConfig);
+const teacherMode = new URLSearchParams(location.search).has("teacher");
+const app = initializeApp(firebaseConfig, teacherMode ? "yildiz-teacher" : "yildiz-student");
 const auth = getAuth(app);
 const db = getDatabase(app);
 const rosterRef = ref(db, "class-race/students");
-const teacherMode = new URLSearchParams(location.search).has("teacher");
 let isTeacher = false;
 let watching = false;
 
@@ -66,10 +68,8 @@ function watchRoster() {
 }
 
 window.raceCloud = {
-  async login(email, password) {
-    // Keep the teacher session in this tab's memory instead of persisting it
-    // into shared browser storage used by student tabs on the same device.
-    await setPersistence(auth, inMemoryPersistence);
+  async login(email, password, rememberTeacher) {
+    await setPersistence(auth, rememberTeacher ? browserLocalPersistence : browserSessionPersistence);
     return signInWithEmailAndPassword(auth, email.trim(), password);
   },
   async logout() {
@@ -86,11 +86,12 @@ document.getElementById("firebaseLoginForm")?.addEventListener("submit", async (
   event.preventDefault();
   const email = document.getElementById("firebaseTeacherEmail").value;
   const passwordInput = document.getElementById("firebaseTeacherPassword");
+  const rememberTeacher = document.getElementById("rememberTeacher").checked;
   const button = document.getElementById("firebaseLoginSubmit");
   button.disabled = true;
   message("Giriş yapılıyor…");
   try {
-    await window.raceCloud.login(email, passwordInput.value);
+    await window.raceCloud.login(email, passwordInput.value, rememberTeacher);
     passwordInput.value = "";
   } catch (error) {
     message(error.code === "auth/invalid-credential" || error.code === "auth/wrong-password"

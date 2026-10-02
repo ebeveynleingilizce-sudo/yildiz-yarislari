@@ -4,9 +4,18 @@
   const installButton = document.getElementById('installBtn');
   const helpDialog = document.getElementById('installHelp');
   const closeButton = document.getElementById('installHelpClose');
+  const teacherMode = new URLSearchParams(location.search).has('teacher');
+  const appTitle = teacherMode ? 'Yıldız Yarışları Öğretmen' : 'Yıldız Yarışları Öğrenci';
   let installPrompt = null;
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  document.title = appTitle;
+  installButton.title = teacherMode ? 'Öğretmen uygulamasını ana ekrana ekle' : 'Öğrenci uygulamasını ana ekrana ekle';
+  installButton.setAttribute('aria-label', installButton.title);
+  document.getElementById('installHelpTitle').textContent = teacherMode
+    ? '📲 Öğretmen uygulamasını ekle'
+    : '📲 Öğrenci uygulamasını ekle';
 
   if (isStandalone) installButton.hidden = true;
 
@@ -32,7 +41,7 @@
       if (choice.outcome === 'accepted') {
         installButton.hidden = true;
         const toast = document.getElementById('toast');
-        toast.textContent = 'Yıldız Yarışları ana ekranına ekleniyor! ⭐';
+        toast.textContent = `${teacherMode ? 'Öğretmen' : 'Öğrenci'} uygulaması ana ekrana ekleniyor! ⭐`;
         toast.classList.add('show');
         window.setTimeout(() => toast.classList.remove('show'), 2600);
       }
