@@ -81,6 +81,22 @@ test('Minecraft copy is scoped to the isolated teacher test mode', () => {
   assert.equal(normalApp.get('heroTitle').textContent, '');
 });
 
+test('Minecraft test roster uses pixel sprites for lanes, picker, teacher controls, and profiles', () => {
+  const app = makeApp('?teacher=1&test=1');
+  assert.match(app.get('lanes').innerHTML, /aria-label=\"Steve\"/);
+  assert.match(app.get('lanes').innerHTML, /class=\"mc-sprite\"/);
+  assert.match(app.get('studentControls').innerHTML, /aria-label=\"Halil İbrahim için Steve seç\"/);
+  fire(app.get('settingsBtn'), 'click');
+  fire(app.get('studentControls'), 'click', target({ '[data-pick]': { dataset: { pick: '1' } } }));
+  assert.match(app.get('characterOptions').innerHTML, /Ghast/);
+  assert.equal((app.get('characterOptions').innerHTML.match(/class=\"mc-sprite\"/g) || []).length, 8);
+  fire(app.get('characterOptions'), 'click', target({ '[data-char]': { dataset: { char: '1', emoji: 'mc-ghast' } } }));
+  assert.equal(studentsOf(app.storage)[0].emoji, 'mc-ghast');
+  fire(app.get('lanes'), 'click', target({ '[data-profile]': { dataset: { profile: '1' } } }));
+  assert.match(app.get('profileAvatar').innerHTML, /aria-label=\"Ghast\"/);
+  assert.match(app.get('profileAvatar').innerHTML, /mc-sprite/);
+});
+
 test('teacher panel opens and a character can be selected and saved', () => {
   const { get, storage } = makeApp();
   fire(get('settingsBtn'), 'click');
