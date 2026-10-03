@@ -151,7 +151,7 @@ function activateStudentIdentity(studentId) {
   questionProgressSubscription = onValue(progressRef, snapshot => {
     const progress = snapshot.exists() ? snapshot.val() : null;
     window.dispatchEvent(new CustomEvent("firebase-question-progress", { detail: progress ? { [activeStudentId]: progress } : {} }));
-  }, error => console.error("Soru bankası ilerlemesi okunamadı:", error));
+  }, error => reportFirebaseError("listen", `studentQuestionData/${activeStudentRoster}/${activeStudentId}`, error));
   window.dispatchEvent(new CustomEvent("firebase-student-authorized", { detail: { studentId: activeStudentId } }));
 }
 
@@ -266,8 +266,8 @@ async function initializeTeacher(user) {
     publishWays(latest.ways || defaultWays);
     showShareLink(shareToken);
   }, error => {
-    message("Hesap verisi okunamadı. Firebase kurallarını kontrol et.");
-    console.error("Öğretmen hesabı dinleme hatası:", error);
+    message(`Hesap verisi okunamadı (${error.code || "unknown"}). Firebase kurallarını kontrol et.`);
+    reportFirebaseError("listen", `${teacherCollection}/${teacherUid}`, error);
   });
 
   questionProgressSubscription?.();
@@ -277,7 +277,7 @@ async function initializeTeacher(user) {
       window.dispatchEvent(new CustomEvent("firebase-question-progress", {
         detail: combineQuestionProgress(snapshot.exists() ? snapshot.val() : {}),
       }));
-    }, error => console.error("Öğrenci soru ilerlemeleri okunamadı:", error));
+    }, error => reportFirebaseError("listen", `studentQuestionData/${shareToken}`, error));
   }
 
   // Make this account the default class only for the original owner. Other teachers
@@ -327,8 +327,8 @@ async function watchStudentRoster(user) {
     publishRoster(shared.students);
     publishWays(shared.ways || defaultWays);
   }, error => {
-    message("Yarış verisine erişilemedi. Öğretmen bağlantısını ve Firebase kurallarını kontrol et.");
-    console.error("Öğrenci yarış listesini dinleme hatası:", error);
+    message(`Yarış verisine erişilemedi (${error.code || "unknown"}). Öğretmen bağlantısını ve Firebase kurallarını kontrol et.`);
+    reportFirebaseError("listen", `sharedRosters/${token}`, error);
   });
   try {
     const sessionPath = `studentSessions/${token}/${studentUid}`;
@@ -356,7 +356,8 @@ window.raceCloud = {
     if (!isTeacher || !teacherUid || !shareToken) throw new Error("Öğretmen hesabı bağlanmadı.");
     if (!testMode) {
       studentAccessCodes = reconcileStudentCodes(roster, studentAccessCodes);
-      await update(ref(db, `teacherData/${teacherUid}`), { studentAccessCodes });
+      const teacherPath = `teacherData/${teacherUid}`;
+      await firebaseRequest("write", teacherPath, () => update(ref(db, teacherPath), { studentAccessCodes }));
       await publishStudentCredentials();
       publishStudentCodes();
     }
@@ -368,7 +369,8 @@ window.raceCloud = {
     const id = String(studentId);
     if (!studentAccessCodes[id]) throw new Error("Öğrenci bulunamadı.");
     studentAccessCodes[id] = createStudentCode();
-    await update(ref(db, `teacherData/${teacherUid}`), { studentAccessCodes });
+    const teacherPath = `teacherData/${teacherUid}`;
+    await firebaseRequest("write", teacherPath, () => update(ref(db, teacherPath), { studentAccessCodes }));
     await publishStudentCredentials();
     publishStudentCodes();
   },
