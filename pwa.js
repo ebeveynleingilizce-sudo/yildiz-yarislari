@@ -7,7 +7,7 @@
   const query = new URLSearchParams(location.search);
   const teacherMode = query.has('teacher');
   const testMode = teacherMode && query.get('test') === '1';
-  const appTitle = testMode ? 'YR Öğretmen Testi' : teacherMode ? 'YR Öğretmen' : 'Yıldız Yarışları';
+  const appTitle = testMode ? 'BLOK YARIŞI' : teacherMode ? 'YR Öğretmen' : 'Yıldız Yarışları';
   let installPrompt = null;
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -23,7 +23,7 @@
     ? (/iPad/.test(navigator.userAgent) ? "iPad'e Yükle" : "iPhone'a Yükle")
     : /Android/i.test(navigator.userAgent) ? "Android'e Yükle" : 'Uygulamayı yükle';
   installButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 15v4h14v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>' + installLabel + '</span>';
-  installButton.title = (teacherMode ? 'YR Öğretmen' : 'Yıldız Yarışları') + ' · ' + installLabel;
+  installButton.title = appTitle + ' · ' + installLabel;
   installButton.setAttribute('aria-label', installButton.title);
   document.getElementById('installHelpTitle').textContent = teacherMode
     ? '📲 Öğretmen uygulamasını ekle'

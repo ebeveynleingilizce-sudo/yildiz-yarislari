@@ -73,10 +73,12 @@ test('Minecraft copy is scoped to the isolated teacher test mode', () => {
   const testApp = makeApp('?teacher=1&test=1');
   assert.ok(testApp.ctx.document.body.classList.contains('minecraft-mode'));
   assert.equal(testApp.get('heroTitle').textContent, 'BLOK DÜNYA YARIŞI');
-  assert.equal(testApp.get('trackTitle').textContent, '');
+  assert.equal(testApp.get('brandName').textContent, 'BLOK YARIŞI');
+  assert.equal(testApp.get('heroTagline').textContent, 'XP’ni topla, dünyada ilerle!');
+  assert.equal(testApp.get('trackTitle').textContent, 'NETHER PORTALINA ULAŞ');
   assert.equal(testApp.get('teacherPanelTitle').textContent, 'Dünya yönetimi');
   assert.equal(testApp.get('addStudent').textContent, 'Öğrenci ekle');
-  assert.equal(testApp.get('finishTarget').textContent, 'BEACON HEDEFİ · 30 YILDIZ');
+  assert.equal(testApp.get('finishTarget').textContent, 'NETHER PORTALI · 30 YILDIZ');
   assert.equal(testApp.get('xpStatLabel').textContent, 'TOPLAM XP');
   const normalApp = makeApp('?teacher=1');
   assert.ok(!normalApp.ctx.document.body.classList.contains('minecraft-mode'));
@@ -99,7 +101,7 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(app.get('lanes').innerHTML, /mc-world-track/);
   assert.match(app.get('lanes').innerHTML, /mc-world-ground/);
   assert.match(app.get('lanes').innerHTML, /mc-checkpoint-chest/);
-  assert.match(app.get('lanes').innerHTML, /aria-label=\"Beacon hedefi\"/);
+  assert.match(app.get('lanes').innerHTML, /aria-label=\"Nether portalı hedefi\"/);
   assert.doesNotMatch(app.get('lanes').innerHTML, /mc-path-step/);
   assert.match(app.get('lanes').innerHTML, /mc-world-road/);
   assert.doesNotMatch(app.get('lanes').innerHTML, /mc-torch|mc-world-feature/);
@@ -108,28 +110,33 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(app.get('lanes').innerHTML, /mc-start-label">START/);
   assert.doesNotMatch(app.get('lanes').innerHTML, /mc-checkpoint-sign|15★|scene-[0-9]/);
   assert.equal((app.get('lanes').innerHTML.match(/class="mc-world-scene"/g) || []).length, 10);
-  assert.match(html, /mc-beacon-active \.finish-line/);
+  assert.match(html, /mc-portal-active \.finish-line/);
   assert.match(html, /--runner-from/);
   assert.match(html, /segment<s\.stars\?' filled':''/);
   assert.match(html, /width:80px;height:80px/);
   assert.match(app.get('lanes').innerHTML, /20 yıldızda açılacak ödül sandığı/);
-  assert.match(app.get('lanes').innerHTML, /left:18\.00%/);
+  assert.match(app.get('lanes').innerHTML, /left:5\.00%/);
   assert.match(app.get('lanes').innerHTML, /class="mc-xp-bar" role="progressbar"/);
+  assert.match(app.get('lanes').innerHTML, /class="mc-hearts">(?:<span class="mc-heart"><\/span>){10}<\/div>/);
+  assert.match(app.get('lanes').innerHTML, /class="mc-hunger">(?:<span class="mc-hunger-icon"><\/span>){10}<\/div>/);
+  assert.match(app.get('lanes').innerHTML, /class="mc-hud-level">0<\/span>/);
+  assert.match(html, /mc-world-road\{[^}]*#30263a/);
+  assert.match(html, /mc-portal-active \.finish-line:after/);
   assert.match(app.get('lanes').innerHTML, /aria-valuenow="0"/);
-  assert.match(html, /body\.minecraft-mode \.mc-xp-bar\{grid-column:1\/-1;display:block;flex:none;width:100%;min-width:0;max-width:none;height:12px;margin:0;overflow:hidden;border:2px solid #101410;border-radius:0;background:#242824/);
+  assert.match(html, /body\.minecraft-mode \.mc-xp-bar\{position:absolute;left:0;right:0;bottom:2px/);
   assert.match(app.get('lanes').innerHTML, /mc-xp-segment/);
   assert.match(html, /body\.minecraft-mode \.mc-xp-segment\.filled\{background:#76ed20/);
   assert.match(html, /body\.minecraft-mode \.lane:before\{display:none!important\}/);
   assert.match(html, /body\.minecraft-mode \.student\{width:100%;max-width:150px/);
-  assert.match(html, /body\.minecraft-mode \.mc-start\{left:18%\}/);
-  assert.match(html, /finish-line\{right:18%;transform:translateX\(50%\)\}/);
+  assert.match(html, /body\.minecraft-mode \.mc-start\{left:5%\}/);
+  assert.match(html, /body\.minecraft-mode \.finish-line\{top:auto;left:auto;right:calc\(5% - 15px\)/);
   assert.doesNotMatch(html.match(/body\.minecraft-mode \.mc-xp-bar\{([^}]+)\}/)?.[1] || '', /gradient|border-radius:[1-9]/);
   assert.match(app.get('lanes').innerHTML, /mc-milestone-label">10★/);
   assert.match(app.get('lanes').innerHTML, /mc-milestone-label">20★/);
-  assert.match(html, /mc-xp-bar\{grid-column:1\/-1/);
+  assert.match(html, /body\.minecraft-mode \.mc-xp-bar\{position:absolute;left:0;right:0;bottom:2px/);
   assert.match(html, /mc-start:after\{display:none\}/);
   assert.match(html, /body\.minecraft-mode \.track\{grid-column:1\/\-/);
-  assert.match(html, /body\.minecraft-mode \.track-head\{display:none/);
+  assert.match(html, /body\.minecraft-mode \.track-head\{display:block/);
   assert.match(html, /body\.minecraft-mode:before/);
   assert.match(html, /body\.minecraft-mode \.finish-line:after/);
   assert.match(html, /body\.minecraft-mode \.xp-fill/);
@@ -144,8 +151,8 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(app.get('profileAvatar').innerHTML, /mc-sprite/);
 });
 
-test('Minecraft stars drive XP segments, runner position, and matching world milestones', () => {
-  const positions = [[0,'18.00%'],[5,'28.67%'],[10,'39.33%'],[15,'50.00%'],[20,'60.67%'],[25,'71.33%'],[30,'82.00%']];
+test('Minecraft stars drive XP segments, runner position, and portal course milestones', () => {
+  const positions = [[0,'5.00%'],[5,'20.00%'],[10,'35.00%'],[15,'50.00%'],[20,'65.00%'],[25,'80.00%'],[30,'95.00%']];
   for (const [stars, expected] of positions) {
     const record = [{ id: 1, name: 'Kaşif', emoji: 'mc-steve', stars, xp: stars, lifetimeStars: stars }];
     const app = makeApp('?teacher=1&test=1', record);
@@ -159,8 +166,9 @@ test('Minecraft stars drive XP segments, runner position, and matching world mil
     else assert.match(app.get('lanes').innerHTML, /mc-checkpoint-chest "/);
     if (stars === 30) {
       assert.match(app.get('lanes').innerHTML, /20 yıldız ödül sandığı/);
-      assert.match(app.get('lanes').innerHTML, /AÇILDI/);
-      assert.match(app.get('lanes').innerHTML, /mc-beacon-active/);
+      assert.match(app.get('lanes').innerHTML, /PORTAL AÇIK/);
+      assert.match(app.get('lanes').innerHTML, /mc-portal-active/);
+      assert.match(app.get('lanes').innerHTML, /mc-portal-active/);
     }
   }
 });
@@ -453,7 +461,7 @@ test('Minecraft teacher test mode has its own Firebase data and install identity
   assert.equal(new Set([manifest.id, studentManifest.id, teacherManifest.id]).size, 3, 'the test install ID does not overlap the production apps');
   assert.equal(manifest.start_url, './?teacher=1&test=1');
   assert.equal(manifest.theme_color, '#446d52');
-  assert.equal(manifest.short_name, 'Blok Dünyası');
+  assert.equal(manifest.short_name, 'Blok Yarışı');
   assert.equal(manifest.icons[0].src, './minecraft-test-icon.svg');
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'pwa.js'), 'utf8'), /manifest-teacher-test\.webmanifest/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /manifest-teacher-test\.webmanifest/);

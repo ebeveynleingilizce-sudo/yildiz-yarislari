@@ -1,7 +1,7 @@
 {
   "id": "./?teacher=1&test=1",
-  "name": "Yıldız Yarışları · Blok Dünyası Testi",
-  "short_name": "Blok Dünyası",
+  "name": "BLOK YARIŞI",
+  "short_name": "Blok Yarışı",
   "description": "Öğretmen panelinin izole, Minecraft esintili blok dünya testi.",
   "lang": "tr",
   "start_url": "./?teacher=1&test=1",
