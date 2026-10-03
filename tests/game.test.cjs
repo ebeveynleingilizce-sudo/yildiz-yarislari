@@ -109,7 +109,7 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   fire(app.get('settingsBtn'), 'click');
   fire(app.get('studentControls'), 'click', target({ '[data-pick]': { dataset: { pick: '1' } } }));
   assert.match(app.get('characterOptions').innerHTML, /Ghast/);
-  assert.equal((app.get('characterOptions').innerHTML.match(/class=\"mc-sprite\"/g) || []).length, 8);
+  assert.equal((app.get('characterOptions').innerHTML.match(/class=\"mc-sprite(?: [^\"]*)?\"/g) || []).length, 8);
   fire(app.get('characterOptions'), 'click', target({ '[data-char]': { dataset: { char: '1', emoji: 'mc-ghast' } } }));
   assert.equal(studentsOf(app.storage)[0].emoji, 'mc-ghast');
   fire(app.get('lanes'), 'click', target({ '[data-profile]': { dataset: { profile: '1' } } }));
