@@ -86,6 +86,8 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(app.get('lanes').innerHTML, /aria-label=\"Steve\"/);
   assert.match(app.get('lanes').innerHTML, /class=\"mc-sprite\"/);
   assert.match(app.get('lanes').innerHTML, /fill=\"#c58b62\"/);
+  assert.match(app.get('lanes').innerHTML, /stroke=\"#172016\"/);
+  assert.ok((app.get('lanes').innerHTML.match(/<rect /g) || []).length >= 10, 'pixel character has multiple colored detail blocks');
   assert.doesNotMatch(app.get('lanes').innerHTML, /fill=#[^\s\"]+\/>/);
   assert.match(app.get('studentControls').innerHTML, /aria-label=\"Halil İbrahim için Steve seç\"/);
   fire(app.get('settingsBtn'), 'click');
