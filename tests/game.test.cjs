@@ -115,13 +115,16 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(app.get('lanes').innerHTML, /left:18\.00%/);
   assert.match(app.get('lanes').innerHTML, /class="mc-xp-bar" role="progressbar"/);
   assert.match(app.get('lanes').innerHTML, /aria-valuenow="0"/);
-  assert.match(html, /mc-xp-bar[^}]+border-radius:0[^}]+background:#242824/);
+  assert.match(html, /body\.minecraft-mode \.mc-xp-bar\{grid-column:1\/-1;display:block;flex:none;width:100%;min-width:0;max-width:none;height:12px;margin:0;overflow:hidden;border:2px solid #101410;border-radius:0;background:#242824/);
   assert.match(html, /mc-xp-fill[^}]+background:#76ed20/);
   assert.match(html, /body\.minecraft-mode \.lane:before\{display:none!important\}/);
   assert.match(html, /body\.minecraft-mode \.student\{width:100%;max-width:150px/);
   assert.match(html, /body\.minecraft-mode \.mc-start\{left:18%\}/);
   assert.match(html, /finish-line\{right:18%;transform:translateX\(50%\)\}/);
   assert.doesNotMatch(html.match(/body\.minecraft-mode \.mc-xp-bar\{([^}]+)\}/)?.[1] || '', /gradient|border-radius:[1-9]/);
+  assert.match(app.get('lanes').innerHTML, /mc-checkpoint-sign[^>]*>15★</);
+  assert.match(html, /mc-xp-bar\{grid-column:1\/-1/);
+  assert.match(html, /mc-start:after\{display:none\}/);
   assert.match(html, /body\.minecraft-mode \.track\{grid-column:1\/\-/);
   assert.match(html, /body\.minecraft-mode:before/);
   assert.match(html, /body\.minecraft-mode \.finish-line:after/);
