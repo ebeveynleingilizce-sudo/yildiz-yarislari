@@ -452,19 +452,18 @@ window.addEventListener("firebase-student-code-rotate", event => {
   });
 });
 
-window.addEventListener("firebase-ways-save", event => {
-  if (!isTeacher || !teacherUid || !shareToken) return;
-  publishTeacherData({ ways: event.detail }).catch(error => console.error("Yıldız kazanma yolları kaydedilemedi:", error));
-});
-
-window.addEventListener("firebase-question-progress-save", event => {
-  const { studentId, progress } = event.detail || {};
-  if (isTeacher || !activeStudentRoster || !studentUid || !activeStudentId || String(studentId) !== activeStudentId || !progress) return;
-  window.raceCloud.saveQuestionProgress(studentId, progress).catch(error => {
-    const toast = document.getElementById("toast");
-    if (toast) { toast.textContent = "Soru XP'si Firebase'e kaydedilemedi. Bağlantıyı kontrol et."; toast.classList.add("show"); }
-    console.error("Soru bankası ilerlemesi kaydedilemedi:", error);
-  });
+window.addEventListener("firebase-ways-save", async event => {
+  const result = { ok: false };
+  try {
+    if (!isTeacher || !teacherUid || !shareToken) throw new Error("Öğretmen bağlantısı hazır değil.");
+    await publishTeacherData({ ways: event.detail });
+    result.ok = true;
+  } catch (error) {
+    result.code = error?.code || "";
+    result.message = error?.message || "Firebase kaydı başarısız.";
+    console.error("Yıldız kazanma yolları kaydedilemedi:", error);
+  }
+  window.dispatchEvent(new CustomEvent("firebase-ways-save-result", { detail: result }));
 });
 
 window.addEventListener("firebase-history-save", event => {
