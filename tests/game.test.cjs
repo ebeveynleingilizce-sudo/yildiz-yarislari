@@ -333,10 +333,28 @@ test('Firebase config and rules isolate private teacher accounts and expose only
   assert.match(firebase, /signInAnonymously/);
   assert.match(firebase, /signInWithEmailAndPassword/);
   assert.match(firebase, /signInWithPopup/);
-  assert.match(firebase, /teacherData\/\$\{teacherUid\}/);
+  assert.match(firebase, /const teacherCollection = testMode \? "testTeacherData" : "teacherData"/);
+  assert.match(firebase, /\$\{teacherCollection\}\/\$\{teacherUid\}/);
   assert.match(firebase, /sharedRosters\/\$\{token\}/);
   assert.match(firebase, /if \(Object\.hasOwn\(data, "students"\)\) sharedUpdate\.students = data\.students/);
   assert.match(firebase, /if \(Object\.hasOwn\(data, "ways"\)\) sharedUpdate\.ways = data\.ways/);
   assert.match(firebase, /inMemoryPersistence/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'firebase.json'), 'utf8'), /database\.rules\.json/);
+});
+
+test('Minecraft teacher test mode has its own Firebase data and install identity', () => {
+  const firebase = fs.readFileSync(path.join(__dirname, '..', 'firebase.js'), 'utf8');
+  const rules = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'database.rules.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest-teacher-test.webmanifest'), 'utf8'));
+  const studentManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest-student.webmanifest'), 'utf8'));
+  const teacherManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest-teacher.webmanifest'), 'utf8'));
+  assert.match(html, /viewParams\.has\('teacher'\)&&viewParams\.get\('test'\)==='1'\)document\.body\.classList\.add\('minecraft-mode'\)/);
+  assert.match(firebase, /testTeacherData/);
+  assert.match(firebase, /if \(testMode\) \{\s*await Promise\.all\(updates\);\s*return;/);
+  assert.equal(rules.rules.testTeacherData['$uid']['.read'], 'auth != null && auth.uid === $uid');
+  assert.equal(rules.rules.testTeacherData['$uid']['.write'], 'auth != null && auth.uid === $uid');
+  assert.equal(new Set([manifest.id, studentManifest.id, teacherManifest.id]).size, 3, 'the test install ID does not overlap the production apps');
+  assert.equal(manifest.start_url, './?teacher=1&test=1');
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'pwa.js'), 'utf8'), /manifest-teacher-test\.webmanifest/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /manifest-teacher-test\.webmanifest/);
 });

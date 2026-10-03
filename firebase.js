@@ -8,7 +8,8 @@ import { getDatabase, get, onValue, ref, set, update } from "https://www.gstatic
 import { firebaseConfig } from "./firebase-config.js";
 
 const teacherMode = new URLSearchParams(location.search).has("teacher");
-const app = initializeApp(firebaseConfig, teacherMode ? "yildiz-teacher" : "yildiz-student");
+const testMode = teacherMode && new URLSearchParams(location.search).get("test") === "1";
+const app = initializeApp(firebaseConfig, teacherMode ? (testMode ? "yildiz-teacher-test" : "yildiz-teacher") : "yildiz-student");
 const auth = getAuth(app);
 const db = getDatabase(app);
 const params = new URLSearchParams(location.search);
@@ -76,6 +77,7 @@ function setLocalScope(scope) {
 }
 
 function showShareLink(token) {
+  if (testMode) return;
   const url = new URL(location.href);
   url.search = `?roster=${encodeURIComponent(token)}`;
   url.hash = "";
@@ -83,26 +85,31 @@ function showShareLink(token) {
 }
 
 async function publishTeacherData(data) {
-  const teacherRef = ref(db, `teacherData/${teacherUid}`);
+  const teacherCollection = testMode ? "testTeacherData" : "teacherData";
+  const teacherRef = ref(db, `${teacherCollection}/${teacherUid}`);
+  const updates = [update(teacherRef, data)];
+  if (testMode) {
+    await Promise.all(updates);
+    return;
+  }
   const shareRef = ref(db, `sharedRosters/${shareToken}`);
   const sharedUpdate = { ownerUid: teacherUid };
   if (Object.hasOwn(data, "students")) sharedUpdate.students = data.students;
   if (Object.hasOwn(data, "ways")) sharedUpdate.ways = data.ways;
-  await Promise.all([
-    update(teacherRef, data),
-    update(shareRef, sharedUpdate),
-  ]);
+  updates.push(update(shareRef, sharedUpdate));
+  await Promise.all(updates);
 }
 
 async function initializeTeacher(user) {
   teacherUid = user.uid;
-  const teacherRef = ref(db, `teacherData/${teacherUid}`);
+  const teacherCollection = testMode ? "testTeacherData" : "teacherData";
+  const teacherRef = ref(db, `${teacherCollection}/${teacherUid}`);
   const snapshot = await get(teacherRef);
   let data = snapshot.exists() ? snapshot.val() : null;
 
   if (!data) {
     let legacyStudents = null;
-    if (user.email?.toLowerCase() === primaryTeacherEmail) {
+    if (!testMode && user.email?.toLowerCase() === primaryTeacherEmail) {
       try {
         const legacy = await get(ref(db, "class-race/students"));
         if (legacy.exists()) legacyStudents = legacy.val();
@@ -110,7 +117,7 @@ async function initializeTeacher(user) {
         console.warn("Eski yarış listesini taşıma izni yok; yeni hesap verisi başlatılıyor.", error);
       }
     }
-    if (!Array.isArray(legacyStudents) && user.email?.toLowerCase() === primaryTeacherEmail) {
+    if (!testMode && !Array.isArray(legacyStudents) && user.email?.toLowerCase() === primaryTeacherEmail) {
       try {
         const local = JSON.parse(localStorage.getItem("class-race-v1") || "null");
         if (Array.isArray(local) && local.length) legacyStudents = local;
@@ -139,7 +146,7 @@ async function initializeTeacher(user) {
   data.students = Array.isArray(data.students) && data.students.length ? data.students : defaultStudents;
   data.ways = Array.isArray(data.ways) ? data.ways : defaultWays;
   await publishTeacherData({ students: data.students, ways: data.ways });
-  setLocalScope(`teacher-${teacherUid}`);
+  setLocalScope(`teacher${testMode ? "-test" : ""}-${teacherUid}`);
   publishRoster(data.students);
   publishWays(data.ways || defaultWays);
   starHistory = Array.isArray(data.starHistory) ? data.starHistory : [];
@@ -168,7 +175,7 @@ async function initializeTeacher(user) {
 
   // Make this account the default class only for the original owner. Other teachers
   // share their own unguessable link from the teacher panel.
-  if (user.email?.toLowerCase() === primaryTeacherEmail) {
+  if (!testMode && user.email?.toLowerCase() === primaryTeacherEmail) {
     await set(ref(db, "class-race/defaultRosterToken"), shareToken);
   }
 }
@@ -223,7 +230,7 @@ window.raceCloud = {
     return true;
   },
   getShareUrl() {
-    if (!shareToken) return null;
+    if (testMode || !shareToken) return null;
     const url = new URL(location.href);
     url.search = `?roster=${encodeURIComponent(shareToken)}`;
     return url.href;
@@ -280,13 +287,13 @@ window.addEventListener("firebase-ways-save", event => {
 window.addEventListener("firebase-history-save", event => {
   if (!isTeacher || !teacherUid) return;
   starHistory = [...starHistory, event.detail].slice(-2000);
-  update(ref(db, `teacherData/${teacherUid}`), { starHistory }).catch(error => console.error("Yıldız geçmişi kaydedilemedi:", error));
+  update(ref(db, `${testMode ? "testTeacherData" : "teacherData"}/${teacherUid}`), { starHistory }).catch(error => console.error("Yıldız geçmişi kaydedilemedi:", error));
 });
 
 window.addEventListener("firebase-season-save", event => {
   if (!isTeacher || !teacherUid) return;
   seasons = [...seasons, event.detail].slice(-200);
-  update(ref(db, `teacherData/${teacherUid}`), { seasons }).catch(error => console.error("Tur sonuçları kaydedilemedi:", error));
+  update(ref(db, `${testMode ? "testTeacherData" : "teacherData"}/${teacherUid}`), { seasons }).catch(error => console.error("Tur sonuçları kaydedilemedi:", error));
 });
 
 window.addEventListener("firebase-share-copy", async () => {

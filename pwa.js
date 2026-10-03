@@ -4,15 +4,17 @@
   const installButton = document.getElementById('installBtn');
   const helpDialog = document.getElementById('installHelp');
   const closeButton = document.getElementById('installHelpClose');
-  const teacherMode = new URLSearchParams(location.search).has('teacher');
-  const appTitle = teacherMode ? 'YR Öğretmen' : 'Yıldız Yarışları';
+  const query = new URLSearchParams(location.search);
+  const teacherMode = query.has('teacher');
+  const testMode = teacherMode && query.get('test') === '1';
+  const appTitle = testMode ? 'YR Öğretmen Testi' : teacherMode ? 'YR Öğretmen' : 'Yıldız Yarışları';
   let installPrompt = null;
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   document.title = appTitle;
   const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) manifestLink.href = teacherMode ? './manifest-teacher.webmanifest' : './manifest-student.webmanifest';
+  if (manifestLink) manifestLink.href = testMode ? './manifest-teacher-test.webmanifest' : teacherMode ? './manifest-teacher.webmanifest' : './manifest-student.webmanifest';
   const touchIcon = document.querySelector('link[rel="apple-touch-icon"]');
   if (touchIcon) touchIcon.href = teacherMode ? './teacher-icon.svg' : './app-icon.svg';
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
@@ -27,7 +29,7 @@
     ? '📲 Öğretmen uygulamasını ekle'
     : '📲 Öğrenci uygulamasını ekle';
 
-  if (isStandalone) installButton.hidden = true;
+  if (isStandalone || testMode) installButton.hidden = true;
 
   function showHelp() {
     helpDialog.classList.add('open');

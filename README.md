@@ -6,11 +6,14 @@
 
 - Öğrenci görünümü ve PWA: `https://ebeveynleingilizce-sudo.github.io/yildiz-yarislari/`
 - Öğretmen paneli ve ayrı PWA: `https://ebeveynleingilizce-sudo.github.io/yildiz-yarislari/?teacher=1`
+- İzole Minecraft esintili öğretmen test ortamı: `https://ebeveynleingilizce-sudo.github.io/yildiz-yarislari/?teacher=1&test=1`
 - Mobil kurulum: uygulamayı HTTPS bağlantısından açıp üstteki 📲 düğmesine dokun. iPhone'da Safari paylaş menüsünden “Ana Ekrana Ekle”yi seç.
 
 Öğrenci ve öğretmen sürümleri ayrı manifest, uygulama adı, simge ve kurulum kimliği kullanır. Öğretmen girişi `?teacher=1` ile açılır; öğrenci bağlantısı varsayılan yarış için ana URL'dir. Öğretmen panelindeki **Öğrenci bağlantısını kopyala** düğmesi o öğretmen hesabına özel salt okunur bağlantıyı verir. Öğretmen girişinde “Beni hatırla” seçeneği işaretlenirse öğretmen oturumu bu tarayıcıda kalıcı tutulur.
 
 GitHub Actions, `main` dalına yapılan her gönderimde statik siteyi GitHub Pages'e yayınlar. `firebase-config.js` Firebase web ayarlarını içerir; veritabanı izinleri `database.rules.json` içinde yönetilir. Her öğretmenin özel verisi `teacherData/{auth.uid}` altında tutulur. Öğrenci uygulaması yalnızca öğretmenin gizli paylaşım anahtarıyla açılan `sharedRosters/{token}` verisini okuyabilir. Öğretmen verileri cihazlardaki `localStorage` anahtarlarına UID veya paylaşım anahtarı eklenerek de ayrılır.
+
+`?teacher=1&test=1` yalnızca öğretmen test ekranını açar; Minecraft esintili stil, ayrı `testTeacherData/{auth.uid}` Firebase alanı ve ayrı yerel depolama alanı kullanır. Bu test adresinde üretim öğrenci paylaşım listesi güncellenmez ve kurulum düğmesi kapalıdır. Test ve üretim öğretmen verileri aynı Firebase projesinde farklı UID korumalı köklerde saklanır.
 
 ## Firebase Console gereksinimleri
 

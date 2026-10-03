@@ -8,6 +8,12 @@
         ".write": "auth != null && auth.uid === $uid"
       }
     },
+    "testTeacherData": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
     "sharedRosters": {
       "$token": {
         ".read": "auth != null",
