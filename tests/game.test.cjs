@@ -71,13 +71,14 @@ function studentsOf(storage) { return JSON.parse(storage.get('class-race-v1')); 
 test('inline JavaScript parses and student screen renders ten lanes', () => {
   assert.doesNotThrow(() => new vm.Script(source));
   const { get, ctx } = makeApp('');
-  assert.equal((get('lanes').innerHTML.match(/class="lane"/g) ?? []).length, 10);
-  assert.equal(get('studentCount').textContent, '10 ÖĞRENCİ');
+  assert.equal((get('lanes').innerHTML.match(/class="lane student-card"/g) ?? []).length, 10);
+  assert.equal(get('studentCount').textContent, '10 OYUNCU');
+  assert.ok(ctx.document.body.classList.contains('minecraft-mode'));
   assert.ok(!ctx.document.body.classList.contains('teacher-mode'));
   assert.match(html, /Yıldız Kazanma Yolları/);
 });
 
-test('Minecraft copy is scoped to the isolated teacher test mode', () => {
+test('Minecraft presentation is the default for teacher and student apps', () => {
   const testApp = makeApp('?teacher=1&test=1');
   assert.ok(testApp.ctx.document.body.classList.contains('minecraft-mode'));
   assert.equal(testApp.get('heroTitle').textContent, 'BLOK DÜNYA YARIŞI');
@@ -89,8 +90,9 @@ test('Minecraft copy is scoped to the isolated teacher test mode', () => {
   assert.equal(testApp.get('finishTarget').textContent, 'NETHER PORTALI · 30 XP');
   assert.equal(testApp.get('xpStatLabel').textContent, 'TOPLAM XP');
   const normalApp = makeApp('?teacher=1');
-  assert.ok(!normalApp.ctx.document.body.classList.contains('minecraft-mode'));
-  assert.equal(normalApp.get('heroTitle').textContent, '');
+  assert.ok(normalApp.ctx.document.body.classList.contains('minecraft-mode'));
+  assert.equal(normalApp.get('heroTitle').textContent, 'BLOK DÜNYA YARIŞI');
+  assert.equal(normalApp.get('questionBankOpen').style.display, 'none');
 });
 
 test('Minecraft test roster uses pixel sprites for lanes, picker, teacher controls, and profiles', () => {
@@ -216,9 +218,9 @@ test('local question bank has 20 uniquely identified, answerable questions per l
   assert.equal(groups.get('Sosyal Bilgiler|Ülkemizi Tanıyalım'), 20);
 });
 
-test('question bank is teacher-test-only and each correct answer awards one XP', () => {
+test('question bank is available to students and teacher test preview, and correct answers award one XP', () => {
   const student = makeApp('');
-  assert.equal(student.get('questionBankOpen').style.display, 'none');
+  assert.equal(student.get('questionBankOpen').style.display, '');
   const teacher = makeApp('?teacher=1');
   assert.equal(teacher.get('questionBankOpen').style.display, 'none');
   const { ctx, get, storage } = makeApp('?teacher=1&test=1');
@@ -271,11 +273,41 @@ test('question bank is teacher-test-only and each correct answer awards one XP',
   assert.equal(saved['1'].testHistory[0].newXp, 19);
 });
 
+test('student bank binds the test to the code-authorized student only', () => {
+  const roster = [
+    { id: 1, name: 'Ayşe', emoji: 'mc-alex', stars: 0, xp: 0, lifetimeStars: 0 },
+    { id: 2, name: 'Hilal İbrahim', emoji: 'mc-steve', stars: 0, xp: 0, lifetimeStars: 0 },
+  ];
+  const { ctx, get, storage } = makeApp('', roster);
+  assert.equal(get('settingsBtn').style.display, 'none');
+  fire(get('questionBankOpen'), 'click');
+  assert.ok(get('studentAccessOverlay').classList.contains('open'));
+  assert.ok(!get('questionBankOverlay').classList.contains('open'));
+  ctx.window.listeners['firebase-student-authorized']({ detail: { studentId: '2' } });
+  assert.ok(get('questionBankOverlay').classList.contains('open'));
+  assert.match(get('qbStudent').innerHTML, /value="2">Hilal İbrahim/);
+  assert.doesNotMatch(get('qbStudent').innerHTML, /Ayşe/);
+  ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
+    id: `student_identity_${i + 1}`, lesson: 'Matematik', topic: 'Kesirler',
+    question: 'Pay hangisidir?', choices: ['Üstteki sayı', 'Alttaki sayı', 'Çizgi', 'Bütün'], correctAnswer: 0,
+  }));
+  get('qbStudent').value = '1';
+  get('qbLesson').value = 'Matematik'; fire(get('qbLesson'), 'change');
+  get('qbTopic').value = 'Kesirler'; fire(get('qbTopic'), 'change');
+  fire(get('qbStart'), 'click');
+  assert.equal(get('qbStudentLabel').textContent, 'Hilal İbrahim');
+  const correct = get('qbChoices').choiceButtons.find(button => button.label.includes('Üstteki sayı'));
+  fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: correct.dataset.answer } } }));
+  const saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
+  assert.equal(saved['2'].xpEarned, 1);
+  assert.equal(saved['1'], undefined);
+});
+
 test('Sosyal Bilgiler is selectable and its sample topic starts a test', () => {
   assert.match(html, /<option>Sosyal Bilgiler<\/option>/);
-  assert.match(html, /<script src="\.\/questions\.js\?v=20"><\/script>/);
+  assert.match(html, /<script src="\.\/questions\.js\?v=21"><\/script>/);
   assert.match(html, /\[hidden\]\{display:none!important\}/);
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v20'/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v21'/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8'), /cp .*questions\.js .*_site\//);
   const { ctx, get } = makeApp('?teacher=1&test=1');
   ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
@@ -321,7 +353,7 @@ test('teacher can add and remove students beyond the original ten', () => {
   const { get, storage } = makeApp();
   fire(get('addStudent'), 'click');
   assert.equal(studentsOf(storage).length, 11);
-  assert.equal((get('lanes').innerHTML.match(/class="lane"/g) ?? []).length, 11);
+  assert.equal((get('lanes').innerHTML.match(/class="lane student-card"/g) ?? []).length, 11);
   fire(get('studentControls'), 'click', target({ '[data-remove-student]': { dataset: { removeStudent: '11' } } }));
   assert.equal(studentsOf(storage).length, 10);
 });
@@ -376,8 +408,8 @@ test('storage events refresh student view when another tab updates stars', () =>
   data[0].stars = 3;
   storage.set('class-race-v1', JSON.stringify(data));
   ctx.window.listeners.storage({ key: 'class-race-v1' });
-  assert.match(get('lanes').innerHTML, /⭐ 3 yıldız/);
-  assert.match(get('lanes').innerHTML, /3\/30/);
+  assert.match(get('lanes').innerHTML, /★ 3 \/ 30 XP/);
+  assert.match(get('lanes').innerHTML, /aria-valuenow="3"/);
 });
 
 test('responsive CSS and essential dialog controls are present', () => {
@@ -388,7 +420,7 @@ test('responsive CSS and essential dialog controls are present', () => {
   assert.match(html, /id="profileClose"/);
   assert.match(html, /\(i\+1\)\+'\.'/);
   assert.match(html, /class="place-block"/);
-  assert.match(html, /testMode\?/);
+  assert.match(html, /minecraftMode\?/);
 });
 
 test('star updates animate runners on this tab and on storage synchronization', () => {
@@ -415,9 +447,9 @@ test('profile shows the correct top title, career stars, and earned badges', () 
   const record = [{ id: 1, name: 'Uzman', emoji: '🐱', stars: 30, xp: 100, lifetimeStars: 30 }];
   const { get } = makeApp('?teacher=1', record);
   fire(get('lanes'), 'click', target({ '[data-profile]': { dataset: { profile: '1' } } }));
-  assert.equal(get('profileTitle').textContent, 'Uzman Öğrenci');
+  assert.equal(get('profileTitle').textContent, 'Efsane Kaşif');
   assert.equal(get('profileStars').textContent, 30);
-  assert.match(get('profileBadges').innerHTML, /Şampiyon/);
+  assert.match(get('profileBadges').innerHTML, /Parkur Şampiyonu/);
   assert.match(get('xpCaption').textContent, /en yüksek seviye/i);
 });
 
@@ -426,7 +458,7 @@ test('malformed saved student records are discarded without replacing valid stud
   const { get, storage } = makeApp('?teacher=1', records);
   assert.equal(studentsOf(storage).length, 1);
   assert.equal(studentsOf(storage)[0].name, 'Kayıtlı');
-  assert.equal(studentsOf(storage)[0].emoji, '🐱');
+  assert.equal(studentsOf(storage)[0].emoji, 'mc-steve');
   assert.equal(studentsOf(storage)[0].stars, 0);
   assert.match(get('lanes').innerHTML, /Kayıtlı/);
   assert.doesNotMatch(get('lanes').innerHTML, /<img src=x>/);
@@ -436,7 +468,7 @@ test('student reopens with unseen progress and gets an animated runner', () => {
   const record = [{ id: 1, name: 'Halil İbrahim', emoji: '🐱', stars: 3, xp: 3, lifetimeStars: 3 }];
   const app = makeApp('', record, { '1': { stars: 1 } }), { get, storage } = app;
   assert.ok(get('lane-1').classList.contains('runner'));
-  assert.equal(get('lane-1').runner.style.left, '9.2%');
+  assert.equal(get('lane-1').runner.style.left, '14.00%');
   assert.match(get('toast').textContent, /Son ziyaretinden beri/);
   assert.equal(app.beeps, 1, 'reopening after progress attempts one sound');
   assert.ok(storage.has('class-race-v1-seen'));
@@ -491,7 +523,7 @@ test('duplicate IDs and invalid emojis in saved data are normalized safely', () 
   const saved = studentsOf(storage);
   assert.equal(saved.length, 2);
   assert.notEqual(saved[0].id, saved[1].id);
-  assert.equal(saved[1].emoji, '🐰', 'invalid emoji falls back to that roster position default');
+  assert.equal(saved[1].emoji, 'mc-steve', 'invalid Minecraft character falls back to the first valid character');
   assert.match(get('lanes').innerHTML, /&lt;b&gt;İki&lt;\/b&gt;/);
   assert.doesNotMatch(get('lanes').innerHTML, /<b>İki<\/b>/);
 });
@@ -545,7 +577,7 @@ test('failed local storage writes do not crash the page and are disclosed', () =
   const app = makeApp(); const { ctx, get } = app;
   ctx.localStorage.setItem = () => { throw new Error('quota denied'); };
   assert.doesNotThrow(() => fire(get('studentControls'), 'click', target({ '[data-add]': { dataset: { add: '1' } } })));
-  assert.match(get('lanes').innerHTML, /⭐ 1 yıldız/);
+  assert.match(get('lanes').innerHTML, /aria-valuenow="1"/);
   assert.match(get('toast').textContent, /Bu cihazda kaydedilemedi/);
   assert.equal(app.warnings, 1);
 });
@@ -573,11 +605,14 @@ test('Firebase config and rules isolate private teacher accounts and expose only
   assert.match(firebase, /if \(Object\.hasOwn\(data, "students"\)\) sharedUpdate\.students = data\.students/);
   assert.match(firebase, /if \(Object\.hasOwn\(data, "ways"\)\) sharedUpdate\.ways = data\.ways/);
   assert.match(firebase, /setPersistence\(auth, browserLocalPersistence\)/);
-  assert.match(firebase, /studentQuestionData\/\$\{activeStudentRoster\}\/\$\{studentUid\}/);
+  assert.match(firebase, /studentQuestionData\/\$\{activeStudentRoster\}\/\$\{activeStudentId\}/);
   assert.match(firebase, /firebase-question-progress-save/);
   assert.ok(rules.rules.studentQuestionData, 'question progress has an account-scoped database path');
-  assert.equal(rules.rules.studentQuestionData.$token.$uid['.read'], 'auth != null && auth.uid === $uid');
-  assert.match(rules.rules.studentQuestionData.$token.$uid['.write'], /auth\.uid === \$uid/);
+  assert.equal(rules.rules.studentCredentials.$token['.read'], "auth != null && root.child('teacherData').child(auth.uid).child('shareToken').val() === $token");
+  assert.match(rules.rules.studentSessions.$token.$uid['.write'], /studentCredentials.*codes/);
+  assert.match(rules.rules.studentQuestionData.$token.$studentId['.read'], /studentSessions/);
+  assert.match(rules.rules.studentQuestionData.$token.$studentId['.write'], /child\('studentId'\)\.val\(\) === \$studentId/);
+  assert.match(firebase, /authorizeStudent\(studentId, accessCode\)/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'firebase.json'), 'utf8'), /database\.rules\.json/);
 });
 
@@ -587,7 +622,7 @@ test('Minecraft teacher test mode has its own Firebase data and install identity
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest-teacher-test.webmanifest'), 'utf8'));
   const studentManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest-student.webmanifest'), 'utf8'));
   const teacherManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest-teacher.webmanifest'), 'utf8'));
-  assert.match(html, /viewParams\.has\('teacher'\)&&viewParams\.get\('test'\)==='1'\)document\.body\.classList\.add\('minecraft-mode'\)/);
+  assert.match(html, /document\.body\.classList\.add\('minecraft-mode'\);applyMinecraftCopy/);
   assert.match(firebase, /testTeacherData/);
   assert.match(firebase, /if \(testMode\) \{\s*await Promise\.all\(updates\);\s*return;/);
   assert.equal(rules.rules.testTeacherData['$uid']['.read'], 'auth != null && auth.uid === $uid');
