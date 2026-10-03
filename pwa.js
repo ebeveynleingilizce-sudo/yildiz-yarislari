@@ -7,7 +7,7 @@
   const query = new URLSearchParams(location.search);
   const teacherMode = query.has('teacher');
   const testMode = teacherMode && query.get('test') === '1';
-  const appTitle = testMode ? 'BLOK YARIŞI' : teacherMode ? 'YR Öğretmen' : 'Yıldız Yarışları';
+  const appTitle = testMode ? 'BLOK YARIŞI Test' : teacherMode ? 'BLOK YARIŞI · Öğretmen' : 'BLOK YARIŞI · Öğrenci';
   let installPrompt = null;
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -16,7 +16,11 @@
   const manifestLink = document.querySelector('link[rel="manifest"]');
   if (manifestLink) manifestLink.href = testMode ? './manifest-teacher-test.webmanifest' : teacherMode ? './manifest-teacher.webmanifest' : './manifest-student.webmanifest';
   const touchIcon = document.querySelector('link[rel="apple-touch-icon"]');
-  if (touchIcon) touchIcon.href = teacherMode ? './teacher-icon.svg' : './app-icon.svg';
+  if (touchIcon) touchIcon.href = teacherMode ? './teacher-icon.svg' : './minecraft-test-icon.svg';
+  const favicon = document.querySelector('link[rel="icon"]');
+  if (favicon) favicon.href = teacherMode ? './teacher-icon.svg' : './minecraft-test-icon.svg';
+  const themeColor = document.getElementById('themeColor');
+  if (themeColor) themeColor.content = '#446d52';
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.content = appTitle;
   const installLabel = isIOS
