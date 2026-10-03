@@ -266,6 +266,23 @@ test('question bank is teacher-test-only and each correct answer awards one XP',
   assert.equal(saved['1'].testHistory[0].newXp, 19);
 });
 
+test('Sosyal Bilgiler is selectable and its sample topic starts a test', () => {
+  assert.match(html, /<option>Sosyal Bilgiler<\/option>/);
+  const { ctx, get } = makeApp('?teacher=1&test=1');
+  ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
+    id: `social_directions_${i + 1}`, lesson: 'Sosyal Bilgiler', topic: 'Harita ve Yönler',
+    question: 'Haritalarda yukarı taraf hangi yönü gösterir?', choices: ['Kuzey', 'Güney', 'Doğu', 'Batı'], correctAnswer: 0,
+  }));
+  fire(get('questionBankOpen'), 'click');
+  get('qbLesson').value = 'Sosyal Bilgiler';
+  fire(get('qbLesson'), 'change');
+  assert.match(get('qbTopic').innerHTML, /Harita ve Yönler/);
+  get('qbTopic').value = 'Harita ve Yönler';
+  fire(get('qbTopic'), 'change');
+  fire(get('qbStart'), 'click');
+  assert.equal(get('qbQuestionCount').textContent, 'SORU 1 / 20');
+});
+
 test('teacher panel opens and a character can be selected and saved', () => {
   const { get, storage } = makeApp();
   fire(get('settingsBtn'), 'click');
