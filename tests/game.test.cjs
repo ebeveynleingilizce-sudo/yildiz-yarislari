@@ -66,6 +66,9 @@ function target(selectors) { return { dataset: selectors['[data-profile]']?.data
 function fire(element, name, eventTarget = target({}), extra = {}) {
   for (const listener of element.listeners[name] ?? []) listener({ target: eventTarget, ...extra });
 }
+async function fireAsync(element, name, eventTarget = target({}), extra = {}) {
+  for (const listener of element.listeners[name] ?? []) await listener({ target: eventTarget, ...extra });
+}
 function studentsOf(storage) { return JSON.parse(storage.get('class-race-v1')); }
 
 test('inline JavaScript parses and student screen renders ten lanes', () => {
@@ -218,7 +221,7 @@ test('local question bank has 20 uniquely identified, answerable questions per l
   assert.equal(groups.get('Sosyal Bilgiler|Ülkemizi Tanıyalım'), 20);
 });
 
-test('question bank is available to students and teacher test preview, and correct answers award one XP', () => {
+test('question bank is available to students and teacher test preview, and correct answers award one XP', async () => {
   const student = makeApp('');
   assert.equal(student.get('questionBankOpen').style.display, '');
   const teacher = makeApp('?teacher=1');
@@ -239,7 +242,7 @@ test('question bank is available to students and teacher test preview, and corre
   fire(get('qbStart'), 'click');
   assert.match(get('qbQuestionCount').textContent, /1 \/ 20/);
   const correctButton = get('qbChoices').choiceButtons.find(button => button.label.includes('3'));
-  fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: correctButton.dataset.answer } } }));
+  await fireAsync(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: correctButton.dataset.answer } } }));
   assert.match(get('qbFeedback').textContent, /\+1 XP/);
   let saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
   assert.equal(saved['1'].xpEarned, 1);
@@ -247,7 +250,7 @@ test('question bank is available to students and teacher test preview, and corre
   assert.match(get('lanes').innerHTML, /aria-valuenow="1"/);
   fire(get('qbNext'), 'click');
   const repeatedCorrect = get('qbChoices').choiceButtons.find(button => button.label.includes('3'));
-  fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: repeatedCorrect.dataset.answer } } }));
+  await fireAsync(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: repeatedCorrect.dataset.answer } } }));
   assert.match(get('qbFeedback').textContent, /\+1 XP/);
   saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
   assert.equal(saved['1'].xpEarned, 2, 'each correct response grants one XP, including a repeated question');
@@ -255,16 +258,16 @@ test('question bank is available to students and teacher test preview, and corre
   fire(get('qbNext'), 'click');
   assert.equal(get('qbQuestionCount').textContent, 'SORU 3 / 20');
   const wrongButton = get('qbChoices').choiceButtons.find(button => !button.label.includes('3'));
-  fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: wrongButton.dataset.answer } } }));
+  await fireAsync(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: wrongButton.dataset.answer } } }));
   assert.match(get('qbFeedback').textContent, /YANLIŞ/);
   saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
   assert.equal(saved['1'].xpEarned, 2, 'wrong answers grant no XP');
   while (get('qbQuestionCount').textContent !== 'SORU 20 / 20') {
-    fire(get('qbNext'), 'click');
+    await fireAsync(get('qbNext'), 'click');
     const answer = get('qbChoices').choiceButtons.find(button => button.label.includes('3'));
-    fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: answer.dataset.answer } } }));
+    await fireAsync(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: answer.dataset.answer } } }));
   }
-  fire(get('qbNext'), 'click');
+  await fireAsync(get('qbNext'), 'click');
   assert.equal(get('qbResultScore').textContent, 'Doğru: 19 · Yanlış: 1');
   assert.equal(get('qbResultXp').textContent, 'Bu testte kazanılan XP: +19 XP');
   saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
@@ -273,7 +276,56 @@ test('question bank is available to students and teacher test preview, and corre
   assert.equal(saved['1'].testHistory[0].newXp, 19);
 });
 
-test('student bank binds the test to the code-authorized student only', () => {
+test('student question XP is not awarded when the Firebase write fails', async () => {
+  const roster = [{ id: 2, name: 'Hilal İbrahim', emoji: 'mc-steve', stars: 0, xp: 0, lifetimeStars: 0 }];
+  const { ctx, get, storage } = makeApp('', roster);
+  fire(get('questionBankOpen'), 'click');
+  ctx.window.listeners['firebase-student-authorized']({ detail: { studentId: '2' } });
+  ctx.window.raceCloud = { saveQuestionProgress: async () => { const error = new Error('denied'); error.code = 'PERMISSION_DENIED'; throw error; } };
+  ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
+    id: 'student_failure_' + i, lesson: 'Matematik', topic: 'Kesirler',
+    question: 'Pay hangisidir?', choices: ['Üstteki sayı', 'Alttaki sayı', 'Çizgi', 'Bütün'], correctAnswer: 0,
+  }));
+  get('qbStudent').value = '2';
+  get('qbLesson').value = 'Matematik'; fire(get('qbLesson'), 'change');
+  get('qbTopic').value = 'Kesirler'; fire(get('qbTopic'), 'change');
+  fire(get('qbStart'), 'click');
+  const correct = get('qbChoices').choiceButtons.find(button => button.label.includes('Üstteki sayı'));
+  await fireAsync(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: correct.dataset.answer } } }));
+  assert.match(get('qbFeedback').textContent, /PERMISSION_DENIED/);
+  assert.doesNotMatch(get('qbFeedback').textContent, /\+1 XP/);
+  assert.equal(get('qbNext').hidden, true);
+  const saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
+  assert.equal(saved['2'], undefined, 'failed Firebase XP is rolled back locally');
+});
+
+test('student question XP feedback waits for Firebase confirmation', async () => {
+  const roster = [{ id: 2, name: 'Hilal İbrahim', emoji: 'mc-steve', stars: 0, xp: 0, lifetimeStars: 0 }];
+  const { ctx, get, storage } = makeApp('', roster);
+  fire(get('questionBankOpen'), 'click');
+  ctx.window.listeners['firebase-student-authorized']({ detail: { studentId: '2' } });
+  let confirmWrite;
+  ctx.window.raceCloud = { saveQuestionProgress: async () => new Promise(resolve => { confirmWrite = resolve; }) };
+  ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
+    id: 'student_wait_' + i, lesson: 'Matematik', topic: 'Kesirler',
+    question: 'Pay hangisidir?', choices: ['Üstteki sayı', 'Alttaki sayı', 'Çizgi', 'Bütün'], correctAnswer: 0,
+  }));
+  get('qbStudent').value = '2';
+  get('qbLesson').value = 'Matematik'; fire(get('qbLesson'), 'change');
+  get('qbTopic').value = 'Kesirler'; fire(get('qbTopic'), 'change');
+  fire(get('qbStart'), 'click');
+  const correct = get('qbChoices').choiceButtons.find(button => button.label.includes('Üstteki sayı'));
+  const answerPending = fireAsync(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: correct.dataset.answer } } }));
+  await Promise.resolve();
+  assert.equal(get('qbFeedback').textContent, '', 'no success message while Firebase is pending');
+  assert.equal(get('qbNext').hidden, true);
+  confirmWrite();
+  await answerPending;
+  assert.match(get('qbFeedback').textContent, /\+1 XP/);
+  assert.equal(JSON.parse(storage.get('question-progress-v1:class-race-v1'))['2'].xpEarned, 1);
+});
+
+test('student bank binds the test to the code-authorized student only', async () => {
   const roster = [
     { id: 1, name: 'Ayşe', emoji: 'mc-alex', stars: 0, xp: 0, lifetimeStars: 0 },
     { id: 2, name: 'Hilal İbrahim', emoji: 'mc-steve', stars: 0, xp: 0, lifetimeStars: 0 },
@@ -284,6 +336,7 @@ test('student bank binds the test to the code-authorized student only', () => {
   assert.ok(get('studentAccessOverlay').classList.contains('open'));
   assert.ok(!get('questionBankOverlay').classList.contains('open'));
   ctx.window.listeners['firebase-student-authorized']({ detail: { studentId: '2' } });
+  ctx.window.raceCloud = { saveQuestionProgress: async () => {} };
   assert.ok(get('questionBankOverlay').classList.contains('open'));
   assert.match(get('qbStudent').innerHTML, /value="2">Hilal İbrahim/);
   assert.doesNotMatch(get('qbStudent').innerHTML, /Ayşe/);
@@ -297,7 +350,7 @@ test('student bank binds the test to the code-authorized student only', () => {
   fire(get('qbStart'), 'click');
   assert.equal(get('qbStudentLabel').textContent, 'Hilal İbrahim');
   const correct = get('qbChoices').choiceButtons.find(button => button.label.includes('Üstteki sayı'));
-  fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: correct.dataset.answer } } }));
+  await fireAsync(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: correct.dataset.answer } } }));
   const saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
   assert.equal(saved['2'].xpEarned, 1);
   assert.equal(saved['1'], undefined);
@@ -606,7 +659,7 @@ test('Firebase config and rules isolate private teacher accounts and expose only
   assert.match(firebase, /if \(Object\.hasOwn\(data, "ways"\)\) sharedUpdate\.ways = data\.ways/);
   assert.match(firebase, /setPersistence\(auth, browserLocalPersistence\)/);
   assert.match(firebase, /studentQuestionData\/\$\{activeStudentRoster\}\/\$\{activeStudentId\}/);
-  assert.match(firebase, /firebase-question-progress-save/);
+  assert.match(html, /await window\.raceCloud\.saveQuestionProgress\(String\(studentId\),progress\)/);
   assert.ok(rules.rules.studentQuestionData, 'question progress has an account-scoped database path');
   assert.equal(rules.rules.studentCredentials.$token['.read'], "auth != null && root.child('teacherData').child(auth.uid).child('shareToken').val() === $token");
   assert.match(rules.rules.studentSessions.$token.$uid['.write'], /studentCredentials.*codes/);
