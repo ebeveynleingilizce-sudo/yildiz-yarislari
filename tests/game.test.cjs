@@ -360,7 +360,7 @@ test('Sosyal Bilgiler is selectable and its sample topic starts a test', () => {
   assert.match(html, /<option>Sosyal Bilgiler<\/option>/);
   assert.match(html, /<script src="\.\/questions\.js\?v=21"><\/script>/);
   assert.match(html, /\[hidden\]\{display:none!important\}/);
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v27'/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v26'/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8'), /cp .*questions\.js .*_site\//);
   const { ctx, get } = makeApp('?teacher=1&test=1');
   ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
@@ -667,6 +667,20 @@ test('Firebase config and rules isolate private teacher accounts and expose only
   assert.match(rules.rules.studentQuestionData.$token.$studentId['.write'], /child\('studentId'\)\.val\(\) === \$studentId/);
   assert.match(firebase, /authorizeStudent\(studentId, accessCode\)/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'firebase.json'), 'utf8'), /database\.rules\.json/);
+});
+
+test('Firebase failures expose the actual path and save result without weakening rules', () => {
+  const firebase = fs.readFileSync(path.join(__dirname, '..', 'firebase.js'), 'utf8');
+  const htmlSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const rules = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'database.rules.json'), 'utf8'));
+  assert.match(firebase, /console\.error\(`Firebase \$\{operation\} failed`/);
+  assert.match(firebase, /path,\s*authUid: auth\.currentUser\?\.uid/);
+  assert.match(firebase, /firebase-ways-save-result/);
+  assert.match(firebase, /Firebase'e kaydedilemedi \(\$\{error\?\.code/);
+  assert.match(htmlSource, /Görev panosu Firebase’e kaydedildi/);
+  assert.match(htmlSource, /Görev panosu Firebase’e kaydedilemedi/);
+  assert.equal(rules.rules['.read'], false);
+  assert.equal(rules.rules['.write'], false);
 });
 
 test('Minecraft teacher test mode has its own Firebase data and install identity', () => {
