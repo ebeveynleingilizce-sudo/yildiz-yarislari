@@ -20,6 +20,20 @@
         ".write": "auth != null && auth.uid === newData.child('ownerUid').val() && root.child('teacherData').child(auth.uid).child('shareToken').val() === $token"
       }
     },
+    "studentCredentials": {
+      "$token": {
+        ".read": "auth != null && root.child('teacherData').child(auth.uid).child('shareToken').val() === $token",
+        ".write": "auth != null && root.child('teacherData').child(auth.uid).child('shareToken').val() === $token && newData.child('ownerUid').val() === auth.uid"
+      }
+    },
+    "studentSessions": {
+      "$token": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid && root.child('sharedRosters').child($token).exists() && newData.child('studentId').isString() && newData.child('accessCode').isString() && newData.child('accessCode').val() === root.child('studentCredentials').child($token).child('codes').child(newData.child('studentId').val()).val()"
+        }
+      }
+    },
     "class-race": {
       "defaultRosterToken": {
         ".read": "auth != null",
@@ -33,9 +47,9 @@
     "studentQuestionData": {
       "$token": {
         ".read": "auth != null && root.child('teacherData').child(auth.uid).child('shareToken').val() === $token",
-        "$uid": {
-          ".read": "auth != null && auth.uid === $uid",
-          ".write": "auth != null && auth.uid === $uid && root.child('sharedRosters').child($token).exists()"
+        "$studentId": {
+          ".read": "auth != null && (root.child('teacherData').child(auth.uid).child('shareToken').val() === $token || root.child('studentSessions').child($token).child(auth.uid).child('studentId').val() === $studentId)",
+          ".write": "auth != null && root.child('studentSessions').child($token).child(auth.uid).child('studentId').val() === $studentId && root.child('sharedRosters').child($token).exists()"
         }
       }
     }
