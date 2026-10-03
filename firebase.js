@@ -20,6 +20,8 @@ let teacherUid = null;
 let shareToken = null;
 let activeStudentRoster = null;
 let studentUid = null;
+let activeStudentId = null;
+let studentAccessCodes = {};
 let rosterSubscription = null;
 let questionProgressSubscription = null;
 let privateSubscription = null;
@@ -68,15 +70,19 @@ function publishWays(ways) {
 function combineQuestionProgress(raw) {
   const combined = {};
   if (!raw || typeof raw !== "object") return combined;
-  for (const accountProgress of Object.values(raw)) {
-    if (!accountProgress || typeof accountProgress !== "object") continue;
-    for (const [studentId, progress] of Object.entries(accountProgress)) {
-      if (!progress || typeof progress !== "object") continue;
-      const current = combined[studentId] || { xpEarned: 0, solvedQuestionIds: [], testHistory: [] };
-      current.solvedQuestionIds = [...new Set([...current.solvedQuestionIds, ...(progress.solvedQuestionIds || [])])];
-      current.xpEarned = current.solvedQuestionIds.length;
-      current.testHistory = [...new Map([...current.testHistory, ...(progress.testHistory || [])].map(item => [item.id, item])).values()].slice(-100);
-      combined[studentId] = current;
+  const addProgress = (studentId, progress) => {
+    if (!progress || typeof progress !== "object" || !Array.isArray(progress.solvedQuestionIds)) return;
+    const current = combined[String(studentId)] || { xpEarned: 0, solvedQuestionIds: [], testHistory: [] };
+    current.solvedQuestionIds = [...new Set([...current.solvedQuestionIds, ...progress.solvedQuestionIds])];
+    current.xpEarned = Math.max(current.xpEarned, Number(progress.xpEarned) || 0, current.solvedQuestionIds.length);
+    current.testHistory = [...new Map([...current.testHistory, ...(progress.testHistory || [])].map(item => [item.id, item])).values()].slice(-100);
+    combined[String(studentId)] = current;
+  };
+  for (const [key, value] of Object.entries(raw)) {
+    if (value && Array.isArray(value.solvedQuestionIds)) addProgress(key, value);
+    else if (value && typeof value === "object") {
+      // Read the earlier UID/student nested layout during migration.
+      for (const [studentId, progress] of Object.entries(value)) addProgress(studentId, progress);
     }
   }
   return combined;
@@ -87,6 +93,43 @@ function makeToken() {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function createStudentCode() {
+  const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join("");
+}
+
+function reconcileStudentCodes(roster, current = {}) {
+  const next = {};
+  for (const student of Array.isArray(roster) ? roster : []) {
+    const id = String(student?.id ?? "");
+    if (id) next[id] = typeof current[id] === "string" && current[id] ? current[id] : createStudentCode();
+  }
+  return next;
+}
+
+function publishStudentCodes() {
+  window.dispatchEvent(new CustomEvent("firebase-student-codes", { detail: studentAccessCodes }));
+}
+
+async function publishStudentCredentials() {
+  if (!isTeacher || testMode || !teacherUid || !shareToken) return;
+  await set(ref(db, `studentCredentials/${shareToken}`), { ownerUid: teacherUid, codes: studentAccessCodes });
+}
+
+function activateStudentIdentity(studentId) {
+  activeStudentId = String(studentId);
+  setLocalScope(`student-${activeStudentRoster}-${activeStudentId}`);
+  questionProgressSubscription?.();
+  const progressRef = ref(db, `studentQuestionData/${activeStudentRoster}/${activeStudentId}`);
+  questionProgressSubscription = onValue(progressRef, snapshot => {
+    const progress = snapshot.exists() ? snapshot.val() : null;
+    window.dispatchEvent(new CustomEvent("firebase-question-progress", { detail: progress ? { [activeStudentId]: progress } : {} }));
+  }, error => console.error("Soru bankası ilerlemesi okunamadı:", error));
+  window.dispatchEvent(new CustomEvent("firebase-student-authorized", { detail: { studentId: activeStudentId } }));
 }
 
 function setLocalScope(scope) {
@@ -145,6 +188,7 @@ async function initializeTeacher(user) {
     data = {
       shareToken: makeToken(),
       students: Array.isArray(legacyStudents) && legacyStudents.length ? legacyStudents : defaultStudents,
+      studentAccessCodes: {},
       ways: defaultWays,
       starHistory: [],
       seasons: [],
@@ -164,7 +208,14 @@ async function initializeTeacher(user) {
   isTeacher = true;
   data.students = Array.isArray(data.students) && data.students.length ? data.students : defaultStudents;
   data.ways = Array.isArray(data.ways) ? data.ways : defaultWays;
+  studentAccessCodes = testMode ? {} : reconcileStudentCodes(data.students, data.studentAccessCodes || {});
+  if (!testMode) {
+    data.studentAccessCodes = studentAccessCodes;
+    await update(teacherRef, { studentAccessCodes });
+    await publishStudentCredentials();
+  }
   await publishTeacherData({ students: data.students, ways: data.ways });
+  if (!testMode) publishStudentCodes();
   setLocalScope(`teacher${testMode ? "-test" : ""}-${teacherUid}`);
   publishRoster(data.students);
   publishWays(data.ways || defaultWays);
@@ -183,6 +234,8 @@ async function initializeTeacher(user) {
     shareToken = latest.shareToken || shareToken;
     starHistory = Array.isArray(latest.starHistory) ? latest.starHistory : [];
     seasons = Array.isArray(latest.seasons) ? latest.seasons : [];
+    studentAccessCodes = testMode ? {} : reconcileStudentCodes(latest.students || data.students, latest.studentAccessCodes || studentAccessCodes);
+    if (!testMode) publishStudentCodes();
     window.dispatchEvent(new CustomEvent("firebase-seasons", { detail: seasons }));
     if (Array.isArray(latest.students) && latest.students.length) publishRoster(latest.students);
     publishWays(latest.ways || defaultWays);
@@ -228,14 +281,18 @@ async function watchStudentRoster(user) {
     return;
   }
   activeStudentRoster = token;
-  setLocalScope(`roster-${token}`);
-  questionProgressSubscription?.();
-  questionProgressSubscription = onValue(ref(db, `studentQuestionData/${token}/${studentUid}`), snapshot => {
-    const progress = snapshot.exists() ? snapshot.val() : {};
-    window.dispatchEvent(new CustomEvent("firebase-question-progress", { detail: progress }));
-  }, error => console.error("Soru bankası ilerlemesi okunamadı:", error));
+  activeStudentId = null;
+  setLocalScope(`student-pending-${token}-${studentUid}`);
   rosterSubscription?.();
-  rosterSubscription = onValue(ref(db, `sharedRosters/${token}`), snapshot => {
+  const sharedRef = ref(db, `sharedRosters/${token}`);
+  const initialRoster = await get(sharedRef);
+  if (!initialRoster.exists()) {
+    message("Bu yarış bağlantısı bulunamadı. Öğretmenden yeni bağlantı iste.");
+    return;
+  }
+  publishRoster(initialRoster.val().students);
+  publishWays(initialRoster.val().ways || defaultWays);
+  rosterSubscription = onValue(sharedRef, snapshot => {
     if (!snapshot.exists()) {
       message("Bu yarış bağlantısı bulunamadı. Öğretmenden yeni bağlantı iste.");
       return;
@@ -247,6 +304,15 @@ async function watchStudentRoster(user) {
     message("Yarış verisine erişilemedi. Öğretmen bağlantısını ve Firebase kurallarını kontrol et.");
     console.error("Öğrenci yarış listesini dinleme hatası:", error);
   });
+  try {
+    const session = await get(ref(db, `studentSessions/${token}/${studentUid}`));
+    const studentId = session.exists() ? String(session.val()?.studentId || "") : "";
+    if (studentId && (initialRoster.val().students || []).some(student => String(student.id) === studentId)) activateStudentIdentity(studentId);
+    else window.dispatchEvent(new CustomEvent("firebase-student-access-required"));
+  } catch (error) {
+    window.dispatchEvent(new CustomEvent("firebase-student-access-required"));
+    console.warn("Öğrenci profili seçimi bekliyor.", error);
+  }
 }
 
 window.raceCloud = {
@@ -261,17 +327,39 @@ window.raceCloud = {
   async logout() { await signOut(auth); },
   async write(roster) {
     if (!isTeacher || !teacherUid || !shareToken) throw new Error("Öğretmen hesabı bağlanmadı.");
+    if (!testMode) {
+      studentAccessCodes = reconcileStudentCodes(roster, studentAccessCodes);
+      await update(ref(db, `teacherData/${teacherUid}`), { studentAccessCodes });
+      await publishStudentCredentials();
+      publishStudentCodes();
+    }
     await publishTeacherData({ students: roster });
     return true;
   },
+  async rotateStudentCode(studentId) {
+    if (!isTeacher || testMode || !teacherUid || !shareToken) throw new Error("Öğretmen hesabı bağlanmadı.");
+    const id = String(studentId);
+    if (!studentAccessCodes[id]) throw new Error("Öğrenci bulunamadı.");
+    studentAccessCodes[id] = createStudentCode();
+    await update(ref(db, `teacherData/${teacherUid}`), { studentAccessCodes });
+    await publishStudentCredentials();
+    publishStudentCodes();
+  },
+  async authorizeStudent(studentId, accessCode) {
+    if (isTeacher || !activeStudentRoster || !studentUid) throw new Error("Öğrenci bağlantısı henüz hazır değil.");
+    const id = String(studentId);
+    await set(ref(db, `studentSessions/${activeStudentRoster}/${studentUid}`), { studentId: id, accessCode });
+    activateStudentIdentity(id);
+    return true;
+  },
   async loadQuestionProgress() {
-    if (isTeacher || !activeStudentRoster || !studentUid) return {};
-    const snapshot = await get(ref(db, `studentQuestionData/${activeStudentRoster}/${studentUid}`));
-    return snapshot.exists() ? snapshot.val() : {};
+    if (isTeacher || !activeStudentRoster || !activeStudentId) return {};
+    const snapshot = await get(ref(db, `studentQuestionData/${activeStudentRoster}/${activeStudentId}`));
+    return snapshot.exists() ? { [activeStudentId]: snapshot.val() } : {};
   },
   async saveQuestionProgress(studentId, progress) {
-    if (isTeacher || !activeStudentRoster || !studentUid) throw new Error("Öğrenci hesabı hazır değil.");
-    await set(ref(db, `studentQuestionData/${activeStudentRoster}/${studentUid}/${studentId}`), progress);
+    if (isTeacher || !activeStudentRoster || !studentUid || String(studentId) !== activeStudentId) throw new Error("Bu öğrenci profili için yetkin yok.");
+    await set(ref(db, `studentQuestionData/${activeStudentRoster}/${activeStudentId}`), progress);
   },
   getShareUrl() {
     if (testMode || !shareToken) return null;
@@ -323,6 +411,14 @@ window.addEventListener("firebase-local-save", event => {
   });
 });
 
+window.addEventListener("firebase-student-code-rotate", event => {
+  window.raceCloud.rotateStudentCode(event.detail?.studentId).catch(error => {
+    const toast = document.getElementById("toast");
+    if (toast) { toast.textContent = "Giriş kodu yenilenemedi. Bağlantıyı kontrol et."; toast.classList.add("show"); }
+    console.error("Öğrenci kodu yenilenemedi:", error);
+  });
+});
+
 window.addEventListener("firebase-ways-save", event => {
   if (!isTeacher || !teacherUid || !shareToken) return;
   publishTeacherData({ ways: event.detail }).catch(error => console.error("Yıldız kazanma yolları kaydedilemedi:", error));
@@ -330,7 +426,7 @@ window.addEventListener("firebase-ways-save", event => {
 
 window.addEventListener("firebase-question-progress-save", event => {
   const { studentId, progress } = event.detail || {};
-  if (isTeacher || !activeStudentRoster || !studentUid || !studentId || !progress) return;
+  if (isTeacher || !activeStudentRoster || !studentUid || !activeStudentId || String(studentId) !== activeStudentId || !progress) return;
   window.raceCloud.saveQuestionProgress(studentId, progress).catch(error => {
     const toast = document.getElementById("toast");
     if (toast) { toast.textContent = "Soru XP'si Firebase'e kaydedilemedi. Bağlantıyı kontrol et."; toast.classList.add("show"); }
