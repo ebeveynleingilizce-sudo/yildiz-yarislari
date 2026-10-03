@@ -1,16 +1,21 @@
 {
-  "id": "./",
-  "name": "Yıldız Yarışları Öğrenci",
-  "short_name": "Yıldız Yarışları",
-  "description": "Öğren, yıldızları topla ve yarışta ilerle.",
+  "id": "./?student=1",
+  "name": "BLOK YARIŞI · Öğrenci",
+  "short_name": "BLOK YARIŞI",
+  "description": "XP kazan, Minecraft dünyasında ilerle ve soruları çöz.",
   "lang": "tr",
-  "start_url": "./",
+  "start_url": "./?student=1",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#111936",
-  "theme_color": "#111936",
+  "background_color": "#83b9df",
+  "theme_color": "#446d52",
   "icons": [
-    { "src": "./app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "./minecraft-test-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }
