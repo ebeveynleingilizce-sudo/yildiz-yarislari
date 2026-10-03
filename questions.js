@@ -133,5 +133,54 @@
   ];
   add(science, "Dünya ve Uzay", "science_space", space);
 
+  const social = "Sosyal Bilgiler";
+  const directions = [
+    ["Haritalarda yukarı taraf genellikle hangi yönü gösterir?", "Kuzey", ["Güney", "Doğu", "Batı"]],
+    ["Haritalarda sağ taraf genellikle hangi yönü gösterir?", "Doğu", ["Batı", "Kuzey", "Güney"]],
+    ["Haritalarda sol taraf genellikle hangi yönü gösterir?", "Batı", ["Doğu", "Güney", "Kuzey"]],
+    ["Haritalarda aşağı taraf genellikle hangi yönü gösterir?", "Güney", ["Kuzey", "Doğu", "Batı"]],
+    ["Güneş sabah hangi yönden doğar?", "Doğu", ["Batı", "Kuzey", "Güney"]],
+    ["Güneş akşam hangi yönde batar?", "Batı", ["Doğu", "Kuzey", "Güney"]],
+    ["Kuzey ile güney arasında kalan ana yön hangisidir?", "Doğu", ["Batı", "Kuzey", "Güney"]],
+    ["Doğu ile batı arasında kalan ana yön hangisidir?", "Kuzey", ["Güney", "Doğu", "Batı"]],
+    ["Bir haritanın neyi gösterdiğini açıklayan bölüme ne denir?", "Harita başlığı", ["Ölçek çizgisi", "Sınır taşı", "Yön oku"]],
+    ["Haritadaki sembollerin anlamını nereden öğreniriz?", "Lejanttan", ["Başlıktan", "Kenarlıktan", "Cetvelden"]],
+    ["Haritada uzaklıkları küçülterek gösteren oran nedir?", "Ölçek", ["Lejant", "Yön", "Başlık"]],
+    ["Haritada kullanılan küçük resim ve işaretlere ne denir?", "Sembol", ["Ölçek", "Kıta", "İklim"]],
+    ["Bir yerin kuş bakışı çizimine ne denebilir?", "Kroki", ["Takvim", "Grafik", "Mektup"]],
+    ["Okulumuzun sınıflarını gösteren basit çizim hangisidir?", "Kroki", ["Dünya haritası", "Takvim", "Sözlük"]],
+    ["Pusula en çok hangi amaçla kullanılır?", "Yön bulmak", ["Zaman ölçmek", "Ağırlık ölçmek", "Sıcaklık ölçmek"]],
+    ["Pusulanın renkli ucu genellikle hangi yönü gösterir?", "Kuzey", ["Güney", "Doğu", "Batı"]],
+    ["Dört ana yön hangileridir?", "Kuzey, güney, doğu, batı", ["Yukarı, aşağı, sağ, sol", "İlkbahar, yaz, sonbahar, kış", "Sabah, öğle, akşam, gece"]],
+    ["Kuzeydoğu hangi iki ana yönün arasındadır?", "Kuzey ile doğu", ["Kuzey ile batı", "Güney ile doğu", "Güney ile batı"]],
+    ["Güneybatı hangi iki ana yönün arasındadır?", "Güney ile batı", ["Kuzey ile doğu", "Kuzey ile batı", "Güney ile doğu"]],
+    ["Bir şehir haritası en çok neyi bulmamıza yardım eder?", "Şehirdeki yerleri", ["Gezegenlerin yaşını", "Denizlerin derinliğini", "Saatin kaç olduğunu"]],
+  ];
+  add(social, "Harita ve Yönler", "social_directions", directions);
+
+  const country = [
+    ["Türkiye'nin başkenti neresidir?", "Ankara", ["İstanbul", "İzmir", "Bursa"]],
+    ["Türkiye hangi kıtalar üzerinde topraklara sahiptir?", "Asya ve Avrupa", ["Afrika ve Amerika", "Avrupa ve Avustralya", "Asya ve Antarktika"]],
+    ["Türkiye'nin bayrağında hangi şekiller bulunur?", "Ay ve yıldız", ["Güneş ve bulut", "Üç yıldız", "Dağ ve nehir"]],
+    ["Türkiye Cumhuriyeti hangi tarihte ilan edilmiştir?", "29 Ekim 1923", ["23 Nisan 1920", "19 Mayıs 1919", "30 Ağustos 1922"]],
+    ["Ulusal Egemenlik ve Çocuk Bayramı hangi gündür?", "23 Nisan", ["29 Ekim", "19 Mayıs", "30 Ağustos"]],
+    ["Atatürk'ü Anma, Gençlik ve Spor Bayramı hangi gündür?", "19 Mayıs", ["23 Nisan", "29 Ekim", "10 Kasım"]],
+    ["Zafer Bayramı hangi tarihte kutlanır?", "30 Ağustos", ["29 Ekim", "23 Nisan", "19 Mayıs"]],
+    ["Türkiye'nin resmî dili hangisidir?", "Türkçe", ["İngilizce", "Fransızca", "Almanca"]],
+    ["Türkiye'de kullanılan para birimi hangisidir?", "Türk lirası", ["Euro", "Dolar", "Sterlin"]],
+    ["Türkiye'nin en kalabalık şehirlerinden biri hangisidir?", "İstanbul", ["Kars", "Sinop", "Artvin"]],
+    ["Türkiye'nin çevresinde hangi deniz bulunmaz?", "Baltık Denizi", ["Karadeniz", "Ege Denizi", "Akdeniz"]],
+    ["Türkiye'nin kuzeyinde hangi deniz vardır?", "Karadeniz", ["Akdeniz", "Kızıldeniz", "Baltık Denizi"]],
+    ["Türkiye'nin batısında hangi deniz bulunur?", "Ege Denizi", ["Karadeniz", "Hazar Denizi", "Kızıldeniz"]],
+    ["Türkiye'nin güneyinde hangi deniz bulunur?", "Akdeniz", ["Karadeniz", "Baltık Denizi", "Kuzey Denizi"]],
+    ["Türkiye'nin yönetim şekli nedir?", "Cumhuriyet", ["Krallık", "İmparatorluk", "Dükalık"]],
+    ["Cumhuriyet yönetiminde ülkeyi yönetme yetkisi kime aittir?", "Millete", ["Yalnızca bir aileye", "Yabancı ülkelere", "Bir şirkete"]],
+    ["Türkiye Büyük Millet Meclisi hangi şehirde bulunur?", "Ankara", ["Antalya", "Edirne", "Trabzon"]],
+    ["İstiklal Marşı'mızın yazarı kimdir?", "Mehmet Âkif Ersoy", ["Yunus Emre", "Namık Kemal", "Âşık Veysel"]],
+    ["İstiklal Marşı okunurken nasıl davranmak uygundur?", "Saygıyla dinlemek", ["Yüksek sesle konuşmak", "Oyun oynamak", "Sınıfta dolaşmak"]],
+    ["Ülkemizin ortak değerlerine nasıl katkı sağlayabiliriz?", "Onlara saygı göstererek", ["Tarihi eserleri bozarak", "Çevreyi kirleterek", "Kuralları önemsemeyerek"]],
+  ];
+  add(social, "Ülkemizi Tanıyalım", "social_country", country);
+
   window.LOCAL_QUESTION_BANK = bank;
 })();

@@ -207,10 +207,17 @@ test('local question bank has 20 uniquely identified, answerable questions per l
     groups.set(key, (groups.get(key) || 0) + 1);
   }
   assert.ok([...groups.values()].every(count => count >= 20));
+  assert.equal(groups.get('Sosyal Bilgiler|Harita ve Yönler'), 20);
+  assert.equal(groups.get('Sosyal Bilgiler|Ülkemizi Tanıyalım'), 20);
 });
 
-test('question bank awards first-correct XP once, records history, and updates the existing race display', () => {
-  const { ctx, get, storage } = makeApp('');
+test('question bank is teacher-test-only and each correct answer awards one XP', () => {
+  const student = makeApp('');
+  assert.equal(student.get('questionBankOpen').style.display, 'none');
+  const teacher = makeApp('?teacher=1');
+  assert.equal(teacher.get('questionBankOpen').style.display, 'none');
+  const { ctx, get, storage } = makeApp('?teacher=1&test=1');
+  assert.equal(get('questionBankOpen').style.display, '');
   const fixture = Array.from({ length: 20 }, (_, i) => ({
     id: 'math_fractions_001', lesson: 'Matematik', topic: 'Kesirler',
     question: '3/4 kesrinde pay hangisidir?', choices: ['3', '4', '7', '1'], correctAnswer: 0, difficulty: 'easy',
@@ -230,13 +237,13 @@ test('question bank awards first-correct XP once, records history, and updates t
   let saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
   assert.equal(saved['1'].xpEarned, 1);
   assert.deepEqual(saved['1'].solvedQuestionIds, ['math_fractions_001']);
-  assert.match(get('lanes').innerHTML, /1\/30/);
+  assert.match(get('lanes').innerHTML, /aria-valuenow="1"/);
   fire(get('qbNext'), 'click');
   const repeatedCorrect = get('qbChoices').choiceButtons.find(button => button.label.includes('3'));
   fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: repeatedCorrect.dataset.answer } } }));
-  assert.match(get('qbFeedback').textContent, /daha önce kazandın/);
+  assert.match(get('qbFeedback').textContent, /\+1 XP/);
   saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
-  assert.equal(saved['1'].xpEarned, 1, 'a unique question can grant XP only once');
+  assert.equal(saved['1'].xpEarned, 2, 'each correct response grants one XP, including a repeated question');
   assert.deepEqual(studentsOf(storage)[0].stars, 0, 'student bank progress is tracked separately from teacher-assigned stars');
   fire(get('qbNext'), 'click');
   assert.equal(get('qbQuestionCount').textContent, 'SORU 3 / 20');
@@ -244,7 +251,7 @@ test('question bank awards first-correct XP once, records history, and updates t
   fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: wrongButton.dataset.answer } } }));
   assert.match(get('qbFeedback').textContent, /YANLIŞ/);
   saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
-  assert.equal(saved['1'].xpEarned, 1, 'wrong answers grant no XP');
+  assert.equal(saved['1'].xpEarned, 2, 'wrong answers grant no XP');
   while (get('qbQuestionCount').textContent !== 'SORU 20 / 20') {
     fire(get('qbNext'), 'click');
     const answer = get('qbChoices').choiceButtons.find(button => button.label.includes('3'));
@@ -252,11 +259,11 @@ test('question bank awards first-correct XP once, records history, and updates t
   }
   fire(get('qbNext'), 'click');
   assert.equal(get('qbResultScore').textContent, 'Doğru: 19 · Yanlış: 1');
-  assert.equal(get('qbResultXp').textContent, 'Bu testte kazanılan XP: +1 XP');
+  assert.equal(get('qbResultXp').textContent, 'Bu testte kazanılan XP: +19 XP');
   saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
   assert.equal(saved['1'].testHistory.length, 1);
   assert.equal(saved['1'].testHistory[0].totalQuestions, 20);
-  assert.equal(saved['1'].testHistory[0].newXp, 1);
+  assert.equal(saved['1'].testHistory[0].newXp, 19);
 });
 
 test('teacher panel opens and a character can be selected and saved', () => {
