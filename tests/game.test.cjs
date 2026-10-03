@@ -307,7 +307,7 @@ test('Sosyal Bilgiler is selectable and its sample topic starts a test', () => {
   assert.match(html, /<option>Sosyal Bilgiler<\/option>/);
   assert.match(html, /<script src="\.\/questions\.js\?v=21"><\/script>/);
   assert.match(html, /\[hidden\]\{display:none!important\}/);
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v25'/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v26'/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8'), /cp .*questions\.js .*_site\//);
   const { ctx, get } = makeApp('?teacher=1&test=1');
   ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
