@@ -108,9 +108,15 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(app.get('lanes').innerHTML, /scene-1/);
   assert.match(html, /mc-beacon-active \.finish-line/);
   assert.match(html, /--runner-from/);
+  assert.match(html, /xpFill.style.width=progressPercent\(s.stars\)/);
   assert.match(html, /width:80px;height:80px/);
   assert.match(app.get('lanes').innerHTML, /30 yıldızda açılacak ödül sandığı/);
   assert.match(app.get('lanes').innerHTML, /left:4\.00%/);
+  assert.match(app.get('lanes').innerHTML, /class="mc-xp-bar" role="progressbar"/);
+  assert.match(app.get('lanes').innerHTML, /aria-valuenow="0"/);
+  assert.match(html, /mc-xp-bar[^}]+border-radius:0[^}]+background:#242824/);
+  assert.match(html, /mc-xp-fill[^}]+background:#76ed20/);
+  assert.doesNotMatch(html.match(/body\.minecraft-mode \.mc-xp-bar\{([^}]+)\}/)?.[1] || '', /gradient|border-radius:[1-9]/);
   assert.match(html, /body\.minecraft-mode \.track\{grid-column:1\/\-/);
   assert.match(html, /body\.minecraft-mode:before/);
   assert.match(html, /body\.minecraft-mode \.finish-line:after/);
@@ -132,6 +138,8 @@ test('Minecraft course maps star milestones directly to world position and opens
     const record = [{ id: 1, name: 'Kaşif', emoji: 'mc-steve', stars, xp: stars, lifetimeStars: stars }];
     const app = makeApp('?teacher=1&test=1', record);
     assert.ok(app.get('lanes').innerHTML.includes('left:' + expected));
+    assert.match(app.get('lanes').innerHTML, new RegExp('aria-valuenow=\"' + stars + '\"'));
+    assert.match(app.get('lanes').innerHTML, new RegExp('width:' + (stars / 30 * 100).toFixed(2) + '%'));
     if (stars === 30) {
       assert.match(app.get('lanes').innerHTML, /Ödül sandığı açıldı/);
       assert.match(app.get('lanes').innerHTML, /AÇILDI/);
