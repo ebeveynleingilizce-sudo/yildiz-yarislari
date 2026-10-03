@@ -85,9 +85,12 @@ function showShareLink(token) {
 async function publishTeacherData(data) {
   const teacherRef = ref(db, `teacherData/${teacherUid}`);
   const shareRef = ref(db, `sharedRosters/${shareToken}`);
+  const sharedUpdate = { ownerUid: teacherUid };
+  if (Object.hasOwn(data, "students")) sharedUpdate.students = data.students;
+  if (Object.hasOwn(data, "ways")) sharedUpdate.ways = data.ways;
   await Promise.all([
     update(teacherRef, data),
-    update(shareRef, { ownerUid: teacherUid, students: data.students, ways: data.ways }),
+    update(shareRef, sharedUpdate),
   ]);
 }
 

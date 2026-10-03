@@ -335,6 +335,8 @@ test('Firebase config and rules isolate private teacher accounts and expose only
   assert.match(firebase, /signInWithPopup/);
   assert.match(firebase, /teacherData\/\$\{teacherUid\}/);
   assert.match(firebase, /sharedRosters\/\$\{token\}/);
+  assert.match(firebase, /if \(Object\.hasOwn\(data, "students"\)\) sharedUpdate\.students = data\.students/);
+  assert.match(firebase, /if \(Object\.hasOwn\(data, "ways"\)\) sharedUpdate\.ways = data\.ways/);
   assert.match(firebase, /inMemoryPersistence/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'firebase.json'), 'utf8'), /database\.rules\.json/);
 });
