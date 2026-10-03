@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yildiz-yarislari-v26';
+const CACHE_NAME = 'yildiz-yarislari-v27';
 const BASE_PATH = new URL('./', self.location.href).pathname;
 const APP_FILES = [
   BASE_PATH,
@@ -10,7 +10,7 @@ const APP_FILES = [
   `${BASE_PATH}teacher-icon.svg`,
   `${BASE_PATH}minecraft-test-icon.svg`,
   `${BASE_PATH}pwa.js`,
-  `${BASE_PATH}questions.js?v=26`
+  `${BASE_PATH}questions.js?v=21`
 ];
 
 self.addEventListener('install', event => {
