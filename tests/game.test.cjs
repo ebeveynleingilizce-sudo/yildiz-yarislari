@@ -100,7 +100,10 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(app.get('lanes').innerHTML, /mc-world-ground/);
   assert.match(app.get('lanes').innerHTML, /mc-checkpoint-chest/);
   assert.match(app.get('lanes').innerHTML, /aria-label=\"Beacon hedefi\"/);
-  assert.equal((app.get('lanes').innerHTML.match(/mc-path-step/g) || []).length, 50);
+  assert.doesNotMatch(app.get('lanes').innerHTML, /mc-path-step/);
+  assert.match(app.get('lanes').innerHTML, /mc-world-road/);
+  assert.match(app.get('lanes').innerHTML, /mc-beacon-base/);
+  assert.match(app.get('lanes').innerHTML, /30 yıldızda açılacak ödül sandığı/);
   assert.match(app.get('lanes').innerHTML, /left:3\.00%/);
   assert.match(html, /body\.minecraft-mode \.track\{grid-column:1\/\-/);
   assert.match(html, /body\.minecraft-mode:before/);
@@ -115,6 +118,19 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   fire(app.get('lanes'), 'click', target({ '[data-profile]': { dataset: { profile: '1' } } }));
   assert.match(app.get('profileAvatar').innerHTML, /aria-label=\"Ghast\"/);
   assert.match(app.get('profileAvatar').innerHTML, /mc-sprite/);
+});
+
+test('Minecraft course maps star milestones directly to world position and opens the reward chest at 30', () => {
+  const positions = [[0,'3.00%'],[5,'18.50%'],[10,'34.00%'],[15,'49.50%'],[20,'65.00%'],[25,'80.50%'],[30,'96.00%']];
+  for (const [stars, expected] of positions) {
+    const record = [{ id: 1, name: 'Kaşif', emoji: 'mc-steve', stars, xp: stars, lifetimeStars: stars }];
+    const app = makeApp('?teacher=1&test=1', record);
+    assert.ok(app.get('lanes').innerHTML.includes('left:' + expected));
+    if (stars === 30) {
+      assert.match(app.get('lanes').innerHTML, /Ödül sandığı açıldı/);
+      assert.match(app.get('lanes').innerHTML, /AÇILDI/);
+    }
+  }
 });
 
 test('teacher panel opens and a character can be selected and saved', () => {
