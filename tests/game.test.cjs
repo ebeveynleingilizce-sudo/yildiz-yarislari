@@ -29,6 +29,9 @@ class FakeElement {
   addEventListener(name, listener) { (this.listeners[name] ??= []).push(listener); }
   querySelector(selector) { return selector === '.runner-token' ? this.runner : null; }
 }
+class FakeCustomEvent {
+  constructor(type, options = {}) { this.type = type; this.detail = options.detail; }
+}
 function makeApp(search = '?teacher=1', seed = null, seen = null) {
   const elements = new Map();
   const get = id => {
@@ -43,7 +46,8 @@ function makeApp(search = '?teacher=1', seed = null, seen = null) {
   const ctx = {
     document: { getElementById: get, body: { classList: new FakeClassList() } },
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => { writes++; storage.set(key, String(value)); } },
-    window: { listeners: {}, AudioContext: FakeAudioContext, addEventListener(name, listener) { this.listeners[name] = listener; } },
+    window: { listeners: {}, AudioContext: FakeAudioContext, addEventListener(name, listener) { this.listeners[name] = listener; }, dispatchEvent(event) { this.dispatched = event; return true; } },
+    CustomEvent: FakeCustomEvent,
     location: { search }, URLSearchParams, confirm: () => true, requestAnimationFrame: fn => fn(), setTimeout: () => 1,
     clearTimeout() {}, console: { warn() { warnings++; } },
   };
@@ -87,6 +91,34 @@ test('teacher can add and remove students beyond the original ten', () => {
   assert.equal((get('lanes').innerHTML.match(/class="lane"/g) ?? []).length, 11);
   fire(get('studentControls'), 'click', target({ '[data-remove-student]': { dataset: { removeStudent: '11' } } }));
   assert.equal(studentsOf(storage).length, 10);
+});
+
+test('teacher can add, edit, deactivate, and remove star earning methods', () => {
+  const { get, ctx } = makeApp();
+  get('waysInput').value = '📘 | Fazladan ödev | Ek çalışma tamamla | 2 | aktif\n🎤 | İngilizce konuş | Derste İngilizce kullan | 1 | pasif';
+  fire(get('saveWays'), 'click');
+  assert.match(get('waysList').innerHTML, /Fazladan ödev/);
+  assert.match(get('waysList').innerHTML, /\+2 yıldız/);
+  assert.doesNotMatch(get('waysList').innerHTML, /İngilizce konuş/);
+  assert.equal(ctx.window.dispatched.type, 'firebase-ways-save');
+  assert.equal(ctx.window.dispatched.detail.length, 2);
+  get('waysInput').value = '📗 | Kitap oku | Her gün oku | 3 | aktif';
+  fire(get('saveWays'), 'click');
+  assert.match(get('waysList').innerHTML, /Kitap oku/);
+  assert.doesNotMatch(get('waysList').innerHTML, /Fazladan ödev/);
+});
+
+test('teacher accounts and student roster links use separate local storage namespaces', () => {
+  const { get, storage, ctx } = makeApp();
+  const original = storage.get('class-race-v1');
+  ctx.window.listeners['firebase-account-scope']({ detail: { scope: 'teacher-account-a' } });
+  const accountA = JSON.parse(storage.get('class-race-v1:teacher-account-a'));
+  accountA[0].name = 'Hesap A';
+  storage.set('class-race-v1:teacher-account-a', JSON.stringify(accountA));
+  ctx.window.listeners['firebase-account-scope']({ detail: { scope: 'teacher-account-b' } });
+  assert.notEqual(storage.get('class-race-v1:teacher-account-b'), storage.get('class-race-v1:teacher-account-a'));
+  assert.equal(storage.get('class-race-v1'), original, 'legacy local data remains available for one-time migration');
+  assert.match(get('lanes').innerHTML, /Halil İbrahim/);
 });
 
 test('stars, XP, and lifetime-star totals update correctly', () => {
@@ -284,16 +316,25 @@ test('failed local storage writes do not crash the page and are disclosed', () =
   assert.equal(app.warnings, 1);
 });
 
-test('Firebase config points to the supplied project and database with teacher-only writes', () => {
+test('Firebase config and rules isolate private teacher accounts and expose only shared rosters', () => {
   const config = fs.readFileSync(path.join(__dirname, '..', 'firebase-config.js'), 'utf8');
   const rules = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'database.rules.json'), 'utf8'));
   const firebase = fs.readFileSync(path.join(__dirname, '..', 'firebase.js'), 'utf8');
   assert.match(config, /projectId:\s*"yildizyarislari"/);
   assert.match(config, /databaseURL:\s*"https:\/\/yildizyarislari-default-rtdb\.europe-west1\.firebasedatabase\.app"/);
-  assert.equal(rules.rules['.read'], 'auth != null');
-  assert.equal(rules.rules['.write'], "auth != null && auth.token.email === 'tunc@test.com'");
+  assert.equal(rules.rules['.read'], false, 'root listing and reads are denied');
+  assert.equal(rules.rules['.write'], false, 'root writes are denied');
+  assert.equal(rules.rules.teacherData['$uid']['.read'], 'auth != null && auth.uid === $uid');
+  assert.equal(rules.rules.teacherData['$uid']['.write'], 'auth != null && auth.uid === $uid');
+  assert.equal(rules.rules.sharedRosters['$token']['.read'], 'auth != null');
+  assert.match(rules.rules.sharedRosters['$token']['.write'], /auth\.uid === newData\.child\('ownerUid'\)\.val\(\)/);
+  assert.equal(rules.rules['class-race'].defaultRosterToken['.read'], 'auth != null');
+  assert.equal(rules.rules['class-race'].students['.read'], "auth != null && auth.token.email === 'tunc@test.com'");
   assert.match(firebase, /signInAnonymously/);
   assert.match(firebase, /signInWithEmailAndPassword/);
+  assert.match(firebase, /signInWithPopup/);
+  assert.match(firebase, /teacherData\/\$\{teacherUid\}/);
+  assert.match(firebase, /sharedRosters\/\$\{token\}/);
   assert.match(firebase, /inMemoryPersistence/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'firebase.json'), 'utf8'), /database\.rules\.json/);
 });

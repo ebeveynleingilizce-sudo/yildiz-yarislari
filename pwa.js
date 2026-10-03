@@ -5,7 +5,7 @@
   const helpDialog = document.getElementById('installHelp');
   const closeButton = document.getElementById('installHelpClose');
   const teacherMode = new URLSearchParams(location.search).has('teacher');
-  const appTitle = teacherMode ? 'Yıldız Yarışları Öğretmen' : 'Yıldız Yarışları Öğrenci';
+  const appTitle = teacherMode ? 'YR Öğretmen' : 'Yıldız Yarışları';
   let installPrompt = null;
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -17,7 +17,11 @@
   if (touchIcon) touchIcon.href = teacherMode ? './teacher-icon.svg' : './app-icon.svg';
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.content = appTitle;
-  installButton.title = teacherMode ? 'Öğretmen uygulamasını ana ekrana ekle' : 'Öğrenci uygulamasını ana ekrana ekle';
+  const installLabel = isIOS
+    ? (/iPad/.test(navigator.userAgent) ? "iPad'e Yükle" : "iPhone'a Yükle")
+    : /Android/i.test(navigator.userAgent) ? "Android'e Yükle" : 'Uygulamayı yükle';
+  installButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 15v4h14v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>' + installLabel + '</span>';
+  installButton.title = (teacherMode ? 'YR Öğretmen' : 'Yıldız Yarışları') + ' · ' + installLabel;
   installButton.setAttribute('aria-label', installButton.title);
   document.getElementById('installHelpTitle').textContent = teacherMode
     ? '📲 Öğretmen uygulamasını ekle'
@@ -67,8 +71,8 @@
 
   const instructions = document.getElementById('installInstructions');
   instructions.textContent = isIOS
-    ? 'Safari’de Paylaş düğmesine dokun, ardından “Ana Ekrana Ekle”yi seçip Ekle’ye bas.'
-    : 'Tarayıcı menüsünden “Uygulamayı yükle” veya “Ana ekrana ekle” seçeneğine dokun. Chrome’da bu seçenek genellikle ⋮ menüsündedir.';
+    ? 'Safari’de Paylaş düğmesine dokun, menüde “Ana Ekrana Ekle”yi seç, “Web Uygulaması Olarak Aç” seçeneğini istersen etkinleştir ve Ekle’ye bas.'
+    : 'Android’de bu düğme gerçek kurulum penceresini açar. Masaüstünde tarayıcı menüsündeki “Uygulamayı yükle” seçeneğini kullanabilirsin.';
 
   window.addEventListener('appinstalled', () => {
     installButton.hidden = true;

@@ -1,6 +1,28 @@
 {
   "rules": {
-    ".read": "auth != null",
-    ".write": "auth != null && auth.token.email === 'tunc@test.com'"
+    ".read": false,
+    ".write": false,
+    "teacherData": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "sharedRosters": {
+      "$token": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === newData.child('ownerUid').val() && root.child('teacherData').child(auth.uid).child('shareToken').val() === $token"
+      }
+    },
+    "class-race": {
+      "defaultRosterToken": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.token.email === 'tunc@test.com'"
+      },
+      "students": {
+        ".read": "auth != null && auth.token.email === 'tunc@test.com'",
+        ".write": false
+      }
+    }
   }
 }

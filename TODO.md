@@ -15,14 +15,15 @@
 ## Firebase bağlantısı
 
 - [x] Firebase web yapılandırmasını ve Realtime Database bağlantısını ekle.
-- [x] Öğretmen e-posta/parola girişi, öğrenci anonim oturumu ve canlı roster eşitlemesini ekle.
-- [x] Realtime Database kurallarını yayımla: oturum açanlar okuyabilir, yalnızca öğretmen e-postası yazabilir.
-- [ ] Firebase Authentication içinde Anonymous ve Email/Password sağlayıcılarını etkinleştir; öğretmen hesabını doğrula.
-- [ ] Güncel dosyaları statik hosting'e yayımla ve iki ayrı cihaz/oturumda canlı eşitlemeyi doğrula.
+- [x] Öğretmen e-posta/parola ve Google girişi, öğrenci anonim oturumu ve canlı roster eşitlemesini ekle.
+- [x] Veriyi öğretmen Firebase UID'sine göre ayır; öğrenci bağlantılarıyla salt okunur yarış listesini paylaş.
+- [x] Öğretmen için yıldız kazanma yollarını düzenleme, yıldız miktarı ve etkin/pasif alanları ekle.
+- [ ] `database.rules.json` kurallarını Firebase Console'da yayımla ve Rules Emulator/gerçek iki hesapla doğrula.
+- [ ] Firebase Authentication içinde Anonymous, Email/Password ve Google sağlayıcılarını etkinleştir; yetkili alan adını doğrula.
+- [ ] Güncel dosyaları GitHub Pages'e yayımla ve iki ayrı öğretmen hesabı ile öğrenci paylaşım bağlantısını doğrula.
 
 ## Sunucu gerektiren işler
 
-- [ ] Uygulamayı statik hosting'e yayımla. Firebase Hosting veya Netlify kullanılabilir.
-- [ ] Herkese açık öğrenci bağlantısında gerçek adlar yerine takma ad/baş harf kullanmayı değerlendir; anonim Firebase oturumu olan ziyaretçiler salt okunur sınıf listesini görebilir.
+- [ ] iOS Safari, Android Chrome ve masaüstünde iki ayrı PWA kurulumunu gerçek cihaz/tarayıcılarla doğrula.
 
-Öğretmen hesabı, Firebase Authentication ve veritabanı yetki kuralları uygulama koduna eklendi. Firebase Console'da sağlayıcıları etkinleştirme ve siteyi yayınlama adımları hâlâ gerekli.
+Firebase kuralları uygulama dosyasında hesap bazlı erişimi tarif eder. Firebase Console'da yayımlama, Google sağlayıcısını etkinleştirme ve gerçek hesaplarla doğrulama adımları hâlâ gerekli.
