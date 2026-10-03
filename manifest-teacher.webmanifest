@@ -1,16 +1,21 @@
 {
   "id": "./?teacher=1",
-  "name": "YR Öğretmen",
-  "short_name": "YR Öğretmen",
-  "description": "Öğrenci listesini ve yıldızları yönetin.",
+  "name": "BLOK YARIŞI · Öğretmen",
+  "short_name": "BLOK YARIŞI ÖĞRETMEN",
+  "description": "Öğrencileri, XP puanlarını ve giriş kodlarını yönetin.",
   "lang": "tr",
   "start_url": "./?teacher=1",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#111936",
-  "theme_color": "#111936",
+  "background_color": "#83b9df",
+  "theme_color": "#446d52",
   "icons": [
-    { "src": "./teacher-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "./teacher-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }
