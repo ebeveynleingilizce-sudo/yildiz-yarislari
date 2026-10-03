@@ -69,6 +69,18 @@ test('inline JavaScript parses and student screen renders ten lanes', () => {
   assert.match(html, /Yıldız Kazanma Yolları/);
 });
 
+test('Minecraft copy is scoped to the isolated teacher test mode', () => {
+  const testApp = makeApp('?teacher=1&test=1');
+  assert.ok(testApp.ctx.document.body.classList.contains('minecraft-mode'));
+  assert.equal(testApp.get('heroTitle').textContent, 'BLOK DÜNYA YARIŞI 🏆');
+  assert.equal(testApp.get('trackTitle').textContent, '🧱 BLOK PARKURU');
+  assert.equal(testApp.get('teacherPanelTitle').textContent, '🧰 Dünya yönetimi');
+  assert.equal(testApp.get('addStudent').textContent, '＋ Öğrenci ekle');
+  const normalApp = makeApp('?teacher=1');
+  assert.ok(!normalApp.ctx.document.body.classList.contains('minecraft-mode'));
+  assert.equal(normalApp.get('heroTitle').textContent, '');
+});
+
 test('teacher panel opens and a character can be selected and saved', () => {
   const { get, storage } = makeApp();
   fire(get('settingsBtn'), 'click');
