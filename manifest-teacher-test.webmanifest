@@ -1,16 +1,21 @@
 {
   "id": "./?teacher=1&test=1",
-  "name": "YR Öğretmen Testi",
-  "short_name": "YR Test",
-  "description": "Yıldız Yarışları öğretmen panelinin izole test sürümü.",
+  "name": "Yıldız Yarışları · Blok Dünyası Testi",
+  "short_name": "Blok Dünyası",
+  "description": "Öğretmen panelinin izole, Minecraft esintili blok dünya testi.",
   "lang": "tr",
   "start_url": "./?teacher=1&test=1",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#17271d",
-  "theme_color": "#35462c",
+  "background_color": "#83b9df",
+  "theme_color": "#446d52",
   "icons": [
-    { "src": "./teacher-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "./minecraft-test-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }

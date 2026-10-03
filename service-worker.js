@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yildiz-yarislari-v5';
+const CACHE_NAME = 'yildiz-yarislari-v6';
 const BASE_PATH = new URL('./', self.location.href).pathname;
 const APP_FILES = [
   BASE_PATH,
@@ -8,6 +8,7 @@ const APP_FILES = [
   `${BASE_PATH}manifest-teacher-test.webmanifest`,
   `${BASE_PATH}app-icon.svg`,
   `${BASE_PATH}teacher-icon.svg`,
+  `${BASE_PATH}minecraft-test-icon.svg`,
   `${BASE_PATH}pwa.js`
 ];
 

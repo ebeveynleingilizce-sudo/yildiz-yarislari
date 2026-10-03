@@ -72,10 +72,12 @@ test('inline JavaScript parses and student screen renders ten lanes', () => {
 test('Minecraft copy is scoped to the isolated teacher test mode', () => {
   const testApp = makeApp('?teacher=1&test=1');
   assert.ok(testApp.ctx.document.body.classList.contains('minecraft-mode'));
-  assert.equal(testApp.get('heroTitle').textContent, 'BLOK DÜNYA YARIŞI 🏆');
-  assert.equal(testApp.get('trackTitle').textContent, '🧱 BLOK PARKURU');
-  assert.equal(testApp.get('teacherPanelTitle').textContent, '🧰 Dünya yönetimi');
-  assert.equal(testApp.get('addStudent').textContent, '＋ Öğrenci ekle');
+  assert.equal(testApp.get('heroTitle').textContent, 'BLOK DÜNYA YARIŞI');
+  assert.equal(testApp.get('trackTitle').textContent, 'BLOK PARKURU');
+  assert.equal(testApp.get('teacherPanelTitle').textContent, 'Dünya yönetimi');
+  assert.equal(testApp.get('addStudent').textContent, 'Öğrenci ekle');
+  assert.equal(testApp.get('finishTarget').textContent, 'BEACON HEDEFİ · 30 YILDIZ');
+  assert.equal(testApp.get('xpStatLabel').textContent, 'TOPLAM XP');
   const normalApp = makeApp('?teacher=1');
   assert.ok(!normalApp.ctx.document.body.classList.contains('minecraft-mode'));
   assert.equal(normalApp.get('heroTitle').textContent, '');
@@ -90,6 +92,15 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.ok((app.get('lanes').innerHTML.match(/<rect /g) || []).length >= 10, 'pixel character has multiple colored detail blocks');
   assert.doesNotMatch(app.get('lanes').innerHTML, /fill=#[^\s\"]+\/>/);
   assert.match(app.get('studentControls').innerHTML, /aria-label=\"Halil İbrahim için Steve seç\"/);
+  assert.match(app.get('waysList').innerHTML, /mc-task-icon/);
+  assert.doesNotMatch(app.get('waysList').innerHTML, /<b>📚<\/b>/);
+  assert.match(app.get('lanes').innerHTML, /class="place-block">01/);
+  assert.match(app.get('lanes').innerHTML, /0\/30/);
+  assert.match(app.get('lanes').innerHTML, /left:3\.00%/);
+  assert.match(html, /body\.minecraft-mode \.track\{grid-column:1\/\-/);
+  assert.match(html, /body\.minecraft-mode:before/);
+  assert.match(html, /body\.minecraft-mode \.finish-line:after/);
+  assert.match(html, /body\.minecraft-mode \.xp-fill/);
   fire(app.get('settingsBtn'), 'click');
   fire(app.get('studentControls'), 'click', target({ '[data-pick]': { dataset: { pick: '1' } } }));
   assert.match(app.get('characterOptions').innerHTML, /Ghast/);
@@ -185,8 +196,9 @@ test('responsive CSS and essential dialog controls are present', () => {
   assert.match(html, /@media\(max-width:420px\)/);
   assert.match(html, /id="characterClose"/);
   assert.match(html, /id="profileClose"/);
-  assert.doesNotMatch(html, /String\(i\+1\)\.padStart\(2/);
   assert.match(html, /\(i\+1\)\+'\.'/);
+  assert.match(html, /class="place-block"/);
+  assert.match(html, /testMode\?/);
 });
 
 test('star updates animate runners on this tab and on storage synchronization', () => {
@@ -387,6 +399,9 @@ test('Minecraft teacher test mode has its own Firebase data and install identity
   assert.equal(rules.rules.testTeacherData['$uid']['.write'], 'auth != null && auth.uid === $uid');
   assert.equal(new Set([manifest.id, studentManifest.id, teacherManifest.id]).size, 3, 'the test install ID does not overlap the production apps');
   assert.equal(manifest.start_url, './?teacher=1&test=1');
+  assert.equal(manifest.theme_color, '#446d52');
+  assert.equal(manifest.short_name, 'Blok Dünyası');
+  assert.equal(manifest.icons[0].src, './minecraft-test-icon.svg');
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'pwa.js'), 'utf8'), /manifest-teacher-test\.webmanifest/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /manifest-teacher-test\.webmanifest/);
 });

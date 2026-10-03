@@ -32,7 +32,7 @@ jobs:
       - name: Prepare static site
         run: |
           mkdir -p _site
-          cp index.html firebase.js firebase-config.js pwa.js service-worker.js manifest-student.webmanifest manifest-teacher.webmanifest manifest-teacher-test.webmanifest app-icon.svg teacher-icon.svg _site/
+          cp index.html firebase.js firebase-config.js pwa.js service-worker.js manifest-student.webmanifest manifest-teacher.webmanifest manifest-teacher-test.webmanifest app-icon.svg teacher-icon.svg minecraft-test-icon.svg _site/
           touch _site/.nojekyll
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
