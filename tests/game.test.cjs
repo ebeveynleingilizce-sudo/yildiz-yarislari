@@ -85,6 +85,8 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   const app = makeApp('?teacher=1&test=1');
   assert.match(app.get('lanes').innerHTML, /aria-label=\"Steve\"/);
   assert.match(app.get('lanes').innerHTML, /class=\"mc-sprite\"/);
+  assert.match(app.get('lanes').innerHTML, /fill=\"#c58b62\"/);
+  assert.doesNotMatch(app.get('lanes').innerHTML, /fill=#[^\s\"]+\/>/);
   assert.match(app.get('studentControls').innerHTML, /aria-label=\"Halil İbrahim için Steve seç\"/);
   fire(app.get('settingsBtn'), 'click');
   fire(app.get('studentControls'), 'click', target({ '[data-pick]': { dataset: { pick: '1' } } }));
