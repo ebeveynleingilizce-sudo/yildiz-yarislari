@@ -107,6 +107,11 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(app.get('lanes').innerHTML, /class="place-block">01/);
   assert.doesNotMatch(app.get('lanes').innerHTML, /0\/30/);
   assert.match(app.get('lanes').innerHTML, /mc-world-track/);
+  assert.match(app.get('lanes').innerHTML, /<article class="lane student-card"[^>]*><header class="student-header">/);
+  assert.match(app.get('lanes').innerHTML, /<header class="student-header">[\s\S]*?<\/header><div class="game-world track mc-world-track/);
+  assert.match(app.get('lanes').innerHTML, /<\/div><div class="mc-course-hud minecraft-hud"/);
+  assert.match(html, /student-card \.game-world\{[^}]*position:relative/);
+  assert.match(html, /student-card \.runner-token\{top:auto/);
   assert.match(app.get('lanes').innerHTML, /mc-world-ground/);
   assert.match(app.get('lanes').innerHTML, /mc-checkpoint-chest/);
   assert.match(app.get('lanes').innerHTML, /aria-label=\"Nether portalı hedefi\"/);
@@ -268,6 +273,9 @@ test('question bank is teacher-test-only and each correct answer awards one XP',
 
 test('Sosyal Bilgiler is selectable and its sample topic starts a test', () => {
   assert.match(html, /<option>Sosyal Bilgiler<\/option>/);
+  assert.match(html, /<script src="\.\/questions\.js\?v=20"><\/script>/);
+  assert.match(html, /\[hidden\]\{display:none!important\}/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v20'/);
   const { ctx, get } = makeApp('?teacher=1&test=1');
   ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
     id: `social_directions_${i + 1}`, lesson: 'Sosyal Bilgiler', topic: 'Harita ve Yönler',
