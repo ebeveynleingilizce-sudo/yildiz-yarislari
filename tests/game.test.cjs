@@ -95,7 +95,12 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(app.get('waysList').innerHTML, /mc-task-icon/);
   assert.doesNotMatch(app.get('waysList').innerHTML, /<b>📚<\/b>/);
   assert.match(app.get('lanes').innerHTML, /class="place-block">01/);
-  assert.match(app.get('lanes').innerHTML, /0\/30/);
+  assert.doesNotMatch(app.get('lanes').innerHTML, /0\/30/);
+  assert.match(app.get('lanes').innerHTML, /mc-world-track/);
+  assert.match(app.get('lanes').innerHTML, /mc-world-ground/);
+  assert.match(app.get('lanes').innerHTML, /mc-checkpoint-chest/);
+  assert.match(app.get('lanes').innerHTML, /aria-label=\"Beacon hedefi\"/);
+  assert.equal((app.get('lanes').innerHTML.match(/mc-path-step/g) || []).length, 50);
   assert.match(app.get('lanes').innerHTML, /left:3\.00%/);
   assert.match(html, /body\.minecraft-mode \.track\{grid-column:1\/\-/);
   assert.match(html, /body\.minecraft-mode:before/);
