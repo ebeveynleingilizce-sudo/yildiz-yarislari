@@ -70,6 +70,14 @@ async function firebaseRequest(operation, path, request) {
   }
 }
 
+function showWriteFailure(label, error) {
+  const toast = document.getElementById("toast");
+  if (toast) {
+    toast.textContent = `${label} (${error?.code || "unknown"}).`;
+    toast.classList.add("show");
+  }
+}
+
 function showLogin(show) {
   document.getElementById("firebaseLoginOverlay")?.classList.toggle("open", show);
   const settings = document.getElementById("settingsBtn");
@@ -439,7 +447,7 @@ window.addEventListener("firebase-local-save", event => {
   if (!isTeacher || suppressRosterSave) return;
   window.raceCloud.write(event.detail).catch(error => {
     const toast = document.getElementById("toast");
-    if (toast) { toast.textContent = "Firebase'e kaydedilemedi. Bağlantı ve yetki kurallarını kontrol et."; toast.classList.add("show"); }
+    if (toast) { toast.textContent = `Firebase'e kaydedilemedi (${error?.code || "unknown"}).`; toast.classList.add("show"); }
     console.error("Firebase kayıt hatası:", error);
   });
 });
@@ -447,7 +455,7 @@ window.addEventListener("firebase-local-save", event => {
 window.addEventListener("firebase-student-code-rotate", event => {
   window.raceCloud.rotateStudentCode(event.detail?.studentId).catch(error => {
     const toast = document.getElementById("toast");
-    if (toast) { toast.textContent = "Giriş kodu yenilenemedi. Bağlantıyı kontrol et."; toast.classList.add("show"); }
+    if (toast) { toast.textContent = `Giriş kodu yenilenemedi (${error?.code || "unknown"}).`; toast.classList.add("show"); }
     console.error("Öğrenci kodu yenilenemedi:", error);
   });
 });
@@ -466,16 +474,22 @@ window.addEventListener("firebase-ways-save", async event => {
   window.dispatchEvent(new CustomEvent("firebase-ways-save-result", { detail: result }));
 });
 
-window.addEventListener("firebase-history-save", event => {
+window.addEventListener("firebase-history-save", async event => {
   if (!isTeacher || !teacherUid) return;
+  const previous = starHistory;
   starHistory = [...starHistory, event.detail].slice(-2000);
-  update(ref(db, `${testMode ? "testTeacherData" : "teacherData"}/${teacherUid}`), { starHistory }).catch(error => console.error("Yıldız geçmişi kaydedilemedi:", error));
+  const path = `${testMode ? "testTeacherData" : "teacherData"}/${teacherUid}`;
+  try { await firebaseRequest("write", path, () => update(ref(db, path), { starHistory })); }
+  catch (error) { starHistory = previous; showWriteFailure("Yıldız geçmişi kaydedilemedi", error); }
 });
 
-window.addEventListener("firebase-season-save", event => {
+window.addEventListener("firebase-season-save", async event => {
   if (!isTeacher || !teacherUid) return;
+  const previous = seasons;
   seasons = [...seasons, event.detail].slice(-200);
-  update(ref(db, `${testMode ? "testTeacherData" : "teacherData"}/${teacherUid}`), { seasons }).catch(error => console.error("Tur sonuçları kaydedilemedi:", error));
+  const path = `${testMode ? "testTeacherData" : "teacherData"}/${teacherUid}`;
+  try { await firebaseRequest("write", path, () => update(ref(db, path), { seasons })); }
+  catch (error) { seasons = previous; showWriteFailure("Tur sonuçları kaydedilemedi", error); }
 });
 
 window.addEventListener("firebase-share-copy", async () => {
