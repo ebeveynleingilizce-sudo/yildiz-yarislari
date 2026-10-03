@@ -21,13 +21,21 @@ class FakeElement {
     this.classList = new FakeClassList();
     this.style = {};
     this.textContent = '';
-    this.innerHTML = '';
+    this._innerHTML = '';
     this.value = '';
     this.runner = { style: {}, classList: new FakeClassList() };
     this.lastElementChild = { scrollIntoView() {} };
   }
+  get innerHTML() { return this._innerHTML; }
+  set innerHTML(value) {
+    this._innerHTML = String(value);
+    this.choiceButtons = [...this._innerHTML.matchAll(/<button[^>]*data-answer="(\d+)"[^>]*>([\s\S]*?)<\/button>/g)]
+      .map(match => ({ dataset: { answer: match[1] }, label: match[2], disabled: false, classList: new FakeClassList() }));
+  }
   addEventListener(name, listener) { (this.listeners[name] ??= []).push(listener); }
   querySelector(selector) { return selector === '.runner-token' ? this.runner : null; }
+  querySelectorAll(selector) { return selector === '.qb-choice' ? (this.choiceButtons ?? []) : []; }
+  setAttribute(name, value) { this[name] = value; }
 }
 class FakeCustomEvent {
   constructor(type, options = {}) { this.type = type; this.detail = options.detail; }
@@ -78,7 +86,7 @@ test('Minecraft copy is scoped to the isolated teacher test mode', () => {
   assert.equal(testApp.get('trackTitle').textContent, 'NETHER PORTALINA ULAŞ');
   assert.equal(testApp.get('teacherPanelTitle').textContent, 'Dünya yönetimi');
   assert.equal(testApp.get('addStudent').textContent, 'Öğrenci ekle');
-  assert.equal(testApp.get('finishTarget').textContent, 'NETHER PORTALI · 30 YILDIZ');
+  assert.equal(testApp.get('finishTarget').textContent, 'NETHER PORTALI · 30 XP');
   assert.equal(testApp.get('xpStatLabel').textContent, 'TOPLAM XP');
   const normalApp = makeApp('?teacher=1');
   assert.ok(!normalApp.ctx.document.body.classList.contains('minecraft-mode'));
@@ -88,7 +96,7 @@ test('Minecraft copy is scoped to the isolated teacher test mode', () => {
 test('Minecraft test roster uses pixel sprites for lanes, picker, teacher controls, and profiles', () => {
   const app = makeApp('?teacher=1&test=1');
   assert.match(app.get('lanes').innerHTML, /aria-label=\"Steve\"/);
-  assert.match(app.get('lanes').innerHTML, /class=\"mc-sprite\"/);
+  assert.match(app.get('lanes').innerHTML, /class=\"mc-sprite mc-online-wrap\"/);
   assert.match(app.get('lanes').innerHTML, /fill=\"#c58b62\"/);
   assert.match(app.get('lanes').innerHTML, /stroke=\"#172016\"/);
   assert.ok((app.get('lanes').innerHTML.match(/<rect /g) || []).length >= 10, 'pixel character has multiple colored detail blocks');
@@ -105,34 +113,36 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.doesNotMatch(app.get('lanes').innerHTML, /mc-path-step/);
   assert.match(app.get('lanes').innerHTML, /mc-world-road/);
   assert.doesNotMatch(app.get('lanes').innerHTML, /mc-torch|mc-world-feature/);
-  assert.match(app.get('lanes').innerHTML, /mc-beacon-base/);
+  assert.match(app.get('lanes').innerHTML, /mc-portal-inner/);
+  assert.doesNotMatch(app.get('lanes').innerHTML, /beacon-core|mc-beacon-base/);
   assert.match(app.get('lanes').innerHTML, /mc-cabin /);
   assert.match(app.get('lanes').innerHTML, /mc-start-label">START/);
   assert.doesNotMatch(app.get('lanes').innerHTML, /mc-checkpoint-sign|15★|scene-[0-9]/);
   assert.equal((app.get('lanes').innerHTML.match(/class="mc-world-scene"/g) || []).length, 10);
   assert.match(html, /mc-portal-active \.finish-line/);
   assert.match(html, /--runner-from/);
-  assert.match(html, /segment<s\.stars\?' filled':''/);
+  assert.match(html, /segment<raceStars\(s\)\?' filled':''/);
   assert.match(html, /width:80px;height:80px/);
-  assert.match(app.get('lanes').innerHTML, /20 yıldızda açılacak ödül sandığı/);
-  assert.match(app.get('lanes').innerHTML, /left:5\.00%/);
+  assert.match(app.get('lanes').innerHTML, /20 XP checkpoint sandığı/);
+  assert.match(app.get('lanes').innerHTML, /style=\"left:5\.00%\"/);
   assert.match(app.get('lanes').innerHTML, /class="mc-xp-bar" role="progressbar"/);
   assert.match(app.get('lanes').innerHTML, /class="mc-hearts">(?:<span class="mc-heart"><\/span>){10}<\/div>/);
   assert.match(app.get('lanes').innerHTML, /class="mc-hunger">(?:<span class="mc-hunger-icon"><\/span>){10}<\/div>/);
   assert.match(app.get('lanes').innerHTML, /class="mc-hud-level">0<\/span>/);
-  assert.match(html, /mc-world-road\{[^}]*#30263a/);
-  assert.match(html, /mc-portal-active \.finish-line:after/);
+  assert.match(html, /mc-world-road\{[^}]*#806344/);
+  assert.equal((app.get('lanes').innerHTML.match(/class="mc-obsidian-block /g) || []).length, 40);
+  assert.match(html, /mc-portal-inner:before/);
   assert.match(app.get('lanes').innerHTML, /aria-valuenow="0"/);
   assert.match(html, /body\.minecraft-mode \.mc-xp-bar\{position:absolute;left:0;right:0;bottom:2px/);
   assert.match(app.get('lanes').innerHTML, /mc-xp-segment/);
   assert.match(html, /body\.minecraft-mode \.mc-xp-segment\.filled\{background:#76ed20/);
   assert.match(html, /body\.minecraft-mode \.lane:before\{display:none!important\}/);
   assert.match(html, /body\.minecraft-mode \.student\{width:100%;max-width:150px/);
-  assert.match(html, /body\.minecraft-mode \.mc-start\{left:5%\}/);
-  assert.match(html, /body\.minecraft-mode \.finish-line\{top:auto;left:auto;right:calc\(5% - 15px\)/);
+  assert.match(html, /body\.minecraft-mode \.mc-start\{left:var\(--track-start\)/);
+  assert.match(html, /body\.minecraft-mode \.finish-line\{top:auto;left:var\(--track-end\);right:auto/);
   assert.doesNotMatch(html.match(/body\.minecraft-mode \.mc-xp-bar\{([^}]+)\}/)?.[1] || '', /gradient|border-radius:[1-9]/);
-  assert.match(app.get('lanes').innerHTML, /mc-milestone-label">10★/);
-  assert.match(app.get('lanes').innerHTML, /mc-milestone-label">20★/);
+  assert.match(app.get('lanes').innerHTML, /mc-milestone-label">10 XP/);
+  assert.match(app.get('lanes').innerHTML, /mc-milestone-label">20 XP/);
   assert.match(html, /body\.minecraft-mode \.mc-xp-bar\{position:absolute;left:0;right:0;bottom:2px/);
   assert.match(html, /mc-start:after\{display:none\}/);
   assert.match(html, /body\.minecraft-mode \.track\{grid-column:1\/\-/);
@@ -142,12 +152,14 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(html, /body\.minecraft-mode \.xp-fill/);
   fire(app.get('settingsBtn'), 'click');
   fire(app.get('studentControls'), 'click', target({ '[data-pick]': { dataset: { pick: '1' } } }));
-  assert.match(app.get('characterOptions').innerHTML, /Ghast/);
-  assert.equal((app.get('characterOptions').innerHTML.match(/class=\"mc-sprite(?: [^\"]*)?\"/g) || []).length, 8);
-  fire(app.get('characterOptions'), 'click', target({ '[data-char]': { dataset: { char: '1', emoji: 'mc-ghast' } } }));
-  assert.equal(studentsOf(app.storage)[0].emoji, 'mc-ghast');
+  assert.match(app.get('characterOptions').innerHTML, /Enderman/);
+  assert.equal((app.get('characterOptions').innerHTML.match(/class=\"mc-sprite(?: [^\"]*)?\"/g) || []).length, 6);
+  assert.match(app.get('characterOptions').innerHTML, /Steve[\s\S]*Alex[\s\S]*Zombi[\s\S]*İskelet[\s\S]*Creeper[\s\S]*Enderman/);
+  assert.doesNotMatch(app.get('characterOptions').innerHTML, /Ghast|Piglin/);
+  fire(app.get('characterOptions'), 'click', target({ '[data-char]': { dataset: { char: '1', emoji: 'mc-enderman' } } }));
+  assert.equal(studentsOf(app.storage)[0].emoji, 'mc-enderman');
   fire(app.get('lanes'), 'click', target({ '[data-profile]': { dataset: { profile: '1' } } }));
-  assert.match(app.get('profileAvatar').innerHTML, /aria-label=\"Ghast\"/);
+  assert.match(app.get('profileAvatar').innerHTML, /aria-label=\"Enderman\"/);
   assert.match(app.get('profileAvatar').innerHTML, /mc-sprite/);
 });
 
@@ -160,17 +172,91 @@ test('Minecraft stars drive XP segments, runner position, and portal course mile
     assert.match(app.get('lanes').innerHTML, new RegExp('aria-valuenow=\"' + stars + '\"'));
     assert.equal((app.get('lanes').innerHTML.match(/mc-xp-segment[^>]*filled/g) || []).length, stars);
     assert.equal((app.get('lanes').innerHTML.match(/class="mc-xp-segment/g) || []).length, 30);
+    assert.match(app.get('lanes').innerHTML, /class="mc-start" style="left:5\.00%"/);
+    assert.match(app.get('lanes').innerHTML, /class="mc-cabin [^"]*" style="left:35\.00%"/);
+    assert.match(app.get('lanes').innerHTML, /class="mc-checkpoint-chest [^"]*" style="left:65\.00%"/);
+    assert.match(app.get('lanes').innerHTML, /class="finish-line" style="left:95\.00%"/);
     if (stars >= 10) assert.match(app.get('lanes').innerHTML, /mc-cabin mc-cabin-reached/);
     else assert.match(app.get('lanes').innerHTML, /mc-cabin "/);
     if (stars >= 20) assert.match(app.get('lanes').innerHTML, /mc-checkpoint-chest mc-chest-open/);
     else assert.match(app.get('lanes').innerHTML, /mc-checkpoint-chest "/);
     if (stars === 30) {
-      assert.match(app.get('lanes').innerHTML, /20 yıldız ödül sandığı/);
+      assert.match(app.get('lanes').innerHTML, /20 XP ödül sandığı/);
       assert.match(app.get('lanes').innerHTML, /PORTAL AÇIK/);
       assert.match(app.get('lanes').innerHTML, /mc-portal-active/);
       assert.match(app.get('lanes').innerHTML, /mc-portal-active/);
     }
   }
+});
+
+test('local question bank has 20 uniquely identified, answerable questions per lesson and topic', () => {
+  const context = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'questions.js'), 'utf8'), context);
+  const bank = context.window.LOCAL_QUESTION_BANK;
+  assert.ok(bank.length >= 300);
+  const ids = new Set();
+  const groups = new Map();
+  for (const question of bank) {
+    assert.ok(question.id && question.lesson && question.topic && question.question);
+    assert.equal(question.choices.length, 4);
+    assert.ok(question.choices.every(choice => typeof choice === 'string' && choice.length));
+    assert.ok(question.correctAnswer >= 0 && question.correctAnswer < question.choices.length);
+    assert.ok(!ids.has(question.id), `question id ${question.id} must be unique`);
+    ids.add(question.id);
+    const key = `${question.lesson}|${question.topic}`;
+    groups.set(key, (groups.get(key) || 0) + 1);
+  }
+  assert.ok([...groups.values()].every(count => count >= 20));
+});
+
+test('question bank awards first-correct XP once, records history, and updates the existing race display', () => {
+  const { ctx, get, storage } = makeApp('');
+  const fixture = Array.from({ length: 20 }, (_, i) => ({
+    id: 'math_fractions_001', lesson: 'Matematik', topic: 'Kesirler',
+    question: '3/4 kesrinde pay hangisidir?', choices: ['3', '4', '7', '1'], correctAnswer: 0, difficulty: 'easy',
+  }));
+  ctx.window.LOCAL_QUESTION_BANK = fixture;
+  fire(get('questionBankOpen'), 'click');
+  get('qbStudent').value = '1';
+  get('qbLesson').value = 'Matematik';
+  fire(get('qbLesson'), 'change');
+  get('qbTopic').value = 'Kesirler';
+  fire(get('qbTopic'), 'change');
+  fire(get('qbStart'), 'click');
+  assert.match(get('qbQuestionCount').textContent, /1 \/ 20/);
+  const correctButton = get('qbChoices').choiceButtons.find(button => button.label.includes('3'));
+  fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: correctButton.dataset.answer } } }));
+  assert.match(get('qbFeedback').textContent, /\+1 XP/);
+  let saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
+  assert.equal(saved['1'].xpEarned, 1);
+  assert.deepEqual(saved['1'].solvedQuestionIds, ['math_fractions_001']);
+  assert.match(get('lanes').innerHTML, /1\/30/);
+  fire(get('qbNext'), 'click');
+  const repeatedCorrect = get('qbChoices').choiceButtons.find(button => button.label.includes('3'));
+  fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: repeatedCorrect.dataset.answer } } }));
+  assert.match(get('qbFeedback').textContent, /daha önce kazandın/);
+  saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
+  assert.equal(saved['1'].xpEarned, 1, 'a unique question can grant XP only once');
+  assert.deepEqual(studentsOf(storage)[0].stars, 0, 'student bank progress is tracked separately from teacher-assigned stars');
+  fire(get('qbNext'), 'click');
+  assert.equal(get('qbQuestionCount').textContent, 'SORU 3 / 20');
+  const wrongButton = get('qbChoices').choiceButtons.find(button => !button.label.includes('3'));
+  fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: wrongButton.dataset.answer } } }));
+  assert.match(get('qbFeedback').textContent, /YANLIŞ/);
+  saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
+  assert.equal(saved['1'].xpEarned, 1, 'wrong answers grant no XP');
+  while (get('qbQuestionCount').textContent !== 'SORU 20 / 20') {
+    fire(get('qbNext'), 'click');
+    const answer = get('qbChoices').choiceButtons.find(button => button.label.includes('3'));
+    fire(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: answer.dataset.answer } } }));
+  }
+  fire(get('qbNext'), 'click');
+  assert.equal(get('qbResultScore').textContent, 'Doğru: 19 · Yanlış: 1');
+  assert.equal(get('qbResultXp').textContent, 'Bu testte kazanılan XP: +1 XP');
+  saved = JSON.parse(storage.get('question-progress-v1:class-race-v1'));
+  assert.equal(saved['1'].testHistory.length, 1);
+  assert.equal(saved['1'].testHistory[0].totalQuestions, 20);
+  assert.equal(saved['1'].testHistory[0].newXp, 1);
 });
 
 test('teacher panel opens and a character can be selected and saved', () => {
@@ -186,6 +272,16 @@ test('teacher panel opens and a character can be selected and saved', () => {
   fire(get('characterOptions'), 'click', target({ '[data-char]': { dataset: { char: '1', emoji: '🦄' } } }));
   assert.equal(studentsOf(storage)[0].emoji, '🦄');
   assert.ok(!get('characterOverlay').classList.contains('open'));
+});
+
+test('legacy Minecraft placeholder selections fall back to Steve without changing character assets', () => {
+  const app = makeApp('?teacher=1&test=1', [
+    { id: 1, name: 'Old option A', emoji: 'mc-ghast', stars: 0, xp: 0 },
+    { id: 2, name: 'Old option B', emoji: 'mc-piglin', stars: 0, xp: 0 },
+  ]);
+  assert.deepEqual(studentsOf(app.storage).map(student => student.emoji), ['mc-steve', 'mc-steve']);
+  assert.match(app.get('lanes').innerHTML, /aria-label="Steve"/);
+  assert.doesNotMatch(app.get('lanes').innerHTML, /Ghast|Piglin/);
 });
 
 test('teacher can add and remove students beyond the original ten', () => {
@@ -443,7 +539,12 @@ test('Firebase config and rules isolate private teacher accounts and expose only
   assert.match(firebase, /sharedRosters\/\$\{token\}/);
   assert.match(firebase, /if \(Object\.hasOwn\(data, "students"\)\) sharedUpdate\.students = data\.students/);
   assert.match(firebase, /if \(Object\.hasOwn\(data, "ways"\)\) sharedUpdate\.ways = data\.ways/);
-  assert.match(firebase, /inMemoryPersistence/);
+  assert.match(firebase, /setPersistence\(auth, browserLocalPersistence\)/);
+  assert.match(firebase, /studentQuestionData\/\$\{activeStudentRoster\}\/\$\{studentUid\}/);
+  assert.match(firebase, /firebase-question-progress-save/);
+  assert.ok(rules.rules.studentQuestionData, 'question progress has an account-scoped database path');
+  assert.equal(rules.rules.studentQuestionData.$token.$uid['.read'], 'auth != null && auth.uid === $uid');
+  assert.match(rules.rules.studentQuestionData.$token.$uid['.write'], /auth\.uid === \$uid/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'firebase.json'), 'utf8'), /database\.rules\.json/);
 });
 
@@ -465,4 +566,5 @@ test('Minecraft teacher test mode has its own Firebase data and install identity
   assert.equal(manifest.icons[0].src, './minecraft-test-icon.svg');
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'pwa.js'), 'utf8'), /manifest-teacher-test\.webmanifest/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /manifest-teacher-test\.webmanifest/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /questions\.js/);
 });

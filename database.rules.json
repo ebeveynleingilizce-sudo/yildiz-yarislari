@@ -29,6 +29,15 @@
         ".read": "auth != null && auth.token.email === 'tunc@test.com'",
         ".write": false
       }
+    },
+    "studentQuestionData": {
+      "$token": {
+        ".read": "auth != null && root.child('teacherData').child(auth.uid).child('shareToken').val() === $token",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid && root.child('sharedRosters').child($token).exists()"
+        }
+      }
     }
   }
 }

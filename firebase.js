@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {
   getAuth, GoogleAuthProvider, browserLocalPersistence, browserSessionPersistence,
-  inMemoryPersistence, onAuthStateChanged, setPersistence, signInAnonymously,
+  onAuthStateChanged, setPersistence, signInAnonymously,
   signInWithEmailAndPassword, signInWithPopup, signOut,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { getDatabase, get, onValue, ref, set, update } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
@@ -19,7 +19,9 @@ let isTeacher = false;
 let teacherUid = null;
 let shareToken = null;
 let activeStudentRoster = null;
+let studentUid = null;
 let rosterSubscription = null;
+let questionProgressSubscription = null;
 let privateSubscription = null;
 let starHistory = [];
 let seasons = [];
@@ -61,6 +63,23 @@ function publishRoster(raw) {
 function publishWays(ways) {
   const safeWays = Array.isArray(ways) ? ways : defaultWays;
   window.dispatchEvent(new CustomEvent("firebase-ways", { detail: safeWays }));
+}
+
+function combineQuestionProgress(raw) {
+  const combined = {};
+  if (!raw || typeof raw !== "object") return combined;
+  for (const accountProgress of Object.values(raw)) {
+    if (!accountProgress || typeof accountProgress !== "object") continue;
+    for (const [studentId, progress] of Object.entries(accountProgress)) {
+      if (!progress || typeof progress !== "object") continue;
+      const current = combined[studentId] || { xpEarned: 0, solvedQuestionIds: [], testHistory: [] };
+      current.solvedQuestionIds = [...new Set([...current.solvedQuestionIds, ...(progress.solvedQuestionIds || [])])];
+      current.xpEarned = current.solvedQuestionIds.length;
+      current.testHistory = [...new Map([...current.testHistory, ...(progress.testHistory || [])].map(item => [item.id, item])).values()].slice(-100);
+      combined[studentId] = current;
+    }
+  }
+  return combined;
 }
 
 function makeToken() {
@@ -173,6 +192,16 @@ async function initializeTeacher(user) {
     console.error("Öğretmen hesabı dinleme hatası:", error);
   });
 
+  questionProgressSubscription?.();
+  questionProgressSubscription = null;
+  if (!testMode) {
+    questionProgressSubscription = onValue(ref(db, `studentQuestionData/${shareToken}`), snapshot => {
+      window.dispatchEvent(new CustomEvent("firebase-question-progress", {
+        detail: combineQuestionProgress(snapshot.exists() ? snapshot.val() : {}),
+      }));
+    }, error => console.error("Öğrenci soru ilerlemeleri okunamadı:", error));
+  }
+
   // Make this account the default class only for the original owner. Other teachers
   // share their own unguessable link from the teacher panel.
   if (!testMode && user.email?.toLowerCase() === primaryTeacherEmail) {
@@ -182,6 +211,7 @@ async function initializeTeacher(user) {
 
 async function watchStudentRoster(user) {
   if (!user) return;
+  studentUid = user.uid;
   let token = requestedRoster;
   const standalone = window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone === true;
   if (token) {
@@ -199,6 +229,11 @@ async function watchStudentRoster(user) {
   }
   activeStudentRoster = token;
   setLocalScope(`roster-${token}`);
+  questionProgressSubscription?.();
+  questionProgressSubscription = onValue(ref(db, `studentQuestionData/${token}/${studentUid}`), snapshot => {
+    const progress = snapshot.exists() ? snapshot.val() : {};
+    window.dispatchEvent(new CustomEvent("firebase-question-progress", { detail: progress }));
+  }, error => console.error("Soru bankası ilerlemesi okunamadı:", error));
   rosterSubscription?.();
   rosterSubscription = onValue(ref(db, `sharedRosters/${token}`), snapshot => {
     if (!snapshot.exists()) {
@@ -228,6 +263,15 @@ window.raceCloud = {
     if (!isTeacher || !teacherUid || !shareToken) throw new Error("Öğretmen hesabı bağlanmadı.");
     await publishTeacherData({ students: roster });
     return true;
+  },
+  async loadQuestionProgress() {
+    if (isTeacher || !activeStudentRoster || !studentUid) return {};
+    const snapshot = await get(ref(db, `studentQuestionData/${activeStudentRoster}/${studentUid}`));
+    return snapshot.exists() ? snapshot.val() : {};
+  },
+  async saveQuestionProgress(studentId, progress) {
+    if (isTeacher || !activeStudentRoster || !studentUid) throw new Error("Öğrenci hesabı hazır değil.");
+    await set(ref(db, `studentQuestionData/${activeStudentRoster}/${studentUid}/${studentId}`), progress);
   },
   getShareUrl() {
     if (testMode || !shareToken) return null;
@@ -282,6 +326,16 @@ window.addEventListener("firebase-local-save", event => {
 window.addEventListener("firebase-ways-save", event => {
   if (!isTeacher || !teacherUid || !shareToken) return;
   publishTeacherData({ ways: event.detail }).catch(error => console.error("Yıldız kazanma yolları kaydedilemedi:", error));
+});
+
+window.addEventListener("firebase-question-progress-save", event => {
+  const { studentId, progress } = event.detail || {};
+  if (isTeacher || !activeStudentRoster || !studentUid || !studentId || !progress) return;
+  window.raceCloud.saveQuestionProgress(studentId, progress).catch(error => {
+    const toast = document.getElementById("toast");
+    if (toast) { toast.textContent = "Soru XP'si Firebase'e kaydedilemedi. Bağlantıyı kontrol et."; toast.classList.add("show"); }
+    console.error("Soru bankası ilerlemesi kaydedilemedi:", error);
+  });
 });
 
 window.addEventListener("firebase-history-save", event => {
@@ -341,7 +395,7 @@ onAuthStateChanged(auth, async user => {
 
   if (!user) {
     try {
-      await setPersistence(auth, inMemoryPersistence);
+      await setPersistence(auth, browserLocalPersistence);
       await signInAnonymously(auth);
     } catch (error) {
       message("Öğrenci bağlantısı kurulamadı. Firebase Authentication'da Anonymous girişini etkinleştir.");
