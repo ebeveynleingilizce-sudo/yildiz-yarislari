@@ -44,8 +44,30 @@ const defaultStudents = [
 ].map(([name, emoji], index) => ({ id: index + 1, name, emoji, stars: 0, xp: 0, lifetimeStars: 0 }));
 
 function message(text) {
-  const target = document.getElementById("firebaseLoginMessage");
+  const target = document.getElementById(teacherMode ? "firebaseLoginMessage" : "studentAccessMessage");
   if (target) target.textContent = text;
+}
+
+function reportFirebaseError(operation, path, error) {
+  console.error(`Firebase ${operation} failed`, {
+    code: error?.code || "unknown",
+    message: error?.message || String(error),
+    path,
+    authUid: auth.currentUser?.uid || null,
+    isAnonymous: auth.currentUser?.isAnonymous ?? null,
+    appName: app.name,
+    projectId: firebaseConfig.projectId,
+    error,
+  });
+}
+
+async function firebaseRequest(operation, path, request) {
+  try {
+    return await request();
+  } catch (error) {
+    reportFirebaseError(operation, path, error);
+    throw error;
+  }
 }
 
 function showLogin(show) {
@@ -117,7 +139,8 @@ function publishStudentCodes() {
 
 async function publishStudentCredentials() {
   if (!isTeacher || testMode || !teacherUid || !shareToken) return;
-  await set(ref(db, `studentCredentials/${shareToken}`), { ownerUid: teacherUid, codes: studentAccessCodes });
+  const path = `studentCredentials/${shareToken}`;
+  await firebaseRequest("write", path, () => set(ref(db, path), { ownerUid: teacherUid, codes: studentAccessCodes }));
 }
 
 function activateStudentIdentity(studentId) {
@@ -148,17 +171,19 @@ function showShareLink(token) {
 
 async function publishTeacherData(data) {
   const teacherCollection = testMode ? "testTeacherData" : "teacherData";
-  const teacherRef = ref(db, `${teacherCollection}/${teacherUid}`);
-  const updates = [update(teacherRef, data)];
+  const teacherPath = `${teacherCollection}/${teacherUid}`;
+  const teacherRef = ref(db, teacherPath);
+  const updates = [firebaseRequest("write", teacherPath, () => update(teacherRef, data))];
   if (testMode) {
     await Promise.all(updates);
     return;
   }
-  const shareRef = ref(db, `sharedRosters/${shareToken}`);
+  const sharePath = `sharedRosters/${shareToken}`;
+  const shareRef = ref(db, sharePath);
   const sharedUpdate = { ownerUid: teacherUid };
   if (Object.hasOwn(data, "students")) sharedUpdate.students = data.students;
   if (Object.hasOwn(data, "ways")) sharedUpdate.ways = data.ways;
-  updates.push(update(shareRef, sharedUpdate));
+  updates.push(firebaseRequest("write", sharePath, () => update(shareRef, sharedUpdate)));
   await Promise.all(updates);
 }
 
@@ -166,7 +191,7 @@ async function initializeTeacher(user) {
   teacherUid = user.uid;
   const teacherCollection = testMode ? "testTeacherData" : "teacherData";
   const teacherRef = ref(db, `${teacherCollection}/${teacherUid}`);
-  const snapshot = await get(teacherRef);
+  const snapshot = await firebaseRequest("read", `${teacherCollection}/${teacherUid}`, () => get(teacherRef));
   let data = snapshot.exists() ? snapshot.val() : null;
 
   if (!data) {
@@ -197,12 +222,12 @@ async function initializeTeacher(user) {
       settings: { finishStars: 30 },
       createdAt: Date.now(),
     };
-    await set(teacherRef, data);
+    await firebaseRequest("write", `${teacherCollection}/${teacherUid}`, () => set(teacherRef, data));
   }
 
   if (!data.shareToken) {
     data.shareToken = makeToken();
-    await update(teacherRef, { shareToken: data.shareToken });
+    await firebaseRequest("write", `${teacherCollection}/${teacherUid}`, () => update(teacherRef, { shareToken: data.shareToken }));
   }
   shareToken = data.shareToken;
   isTeacher = true;
@@ -211,7 +236,7 @@ async function initializeTeacher(user) {
   studentAccessCodes = testMode ? {} : reconcileStudentCodes(data.students, data.studentAccessCodes || {});
   if (!testMode) {
     data.studentAccessCodes = studentAccessCodes;
-    await update(teacherRef, { studentAccessCodes });
+    await firebaseRequest("write", `${teacherCollection}/${teacherUid}`, () => update(teacherRef, { studentAccessCodes }));
     await publishStudentCredentials();
   }
   await publishTeacherData({ students: data.students, ways: data.ways });
@@ -273,7 +298,7 @@ async function watchStudentRoster(user) {
     try { token = localStorage.getItem("yildiz-student-roster-token"); } catch { /* use the default roster below */ }
   }
   if (!token) {
-    const defaultToken = await get(ref(db, "class-race/defaultRosterToken"));
+    const defaultToken = await firebaseRequest("read", "class-race/defaultRosterToken", () => get(ref(db, "class-race/defaultRosterToken")));
     token = defaultToken.exists() ? defaultToken.val() : null;
   }
   if (typeof token !== "string" || !/^[a-f0-9]{32,64}$/i.test(token)) {
@@ -285,13 +310,14 @@ async function watchStudentRoster(user) {
   setLocalScope(`student-pending-${token}-${studentUid}`);
   rosterSubscription?.();
   const sharedRef = ref(db, `sharedRosters/${token}`);
-  const initialRoster = await get(sharedRef);
+  const initialRoster = await firebaseRequest("read", `sharedRosters/${token}`, () => get(sharedRef));
   if (!initialRoster.exists()) {
     message("Bu yarış bağlantısı bulunamadı. Öğretmenden yeni bağlantı iste.");
     return;
   }
   publishRoster(initialRoster.val().students);
   publishWays(initialRoster.val().ways || defaultWays);
+  window.dispatchEvent(new CustomEvent("firebase-student-roster-ready", { detail: { token } }));
   rosterSubscription = onValue(sharedRef, snapshot => {
     if (!snapshot.exists()) {
       message("Bu yarış bağlantısı bulunamadı. Öğretmenden yeni bağlantı iste.");
@@ -305,7 +331,8 @@ async function watchStudentRoster(user) {
     console.error("Öğrenci yarış listesini dinleme hatası:", error);
   });
   try {
-    const session = await get(ref(db, `studentSessions/${token}/${studentUid}`));
+    const sessionPath = `studentSessions/${token}/${studentUid}`;
+    const session = await firebaseRequest("read", sessionPath, () => get(ref(db, sessionPath)));
     const studentId = session.exists() ? String(session.val()?.studentId || "") : "";
     if (studentId && (initialRoster.val().students || []).some(student => String(student.id) === studentId)) activateStudentIdentity(studentId);
     else window.dispatchEvent(new CustomEvent("firebase-student-access-required"));
@@ -348,18 +375,21 @@ window.raceCloud = {
   async authorizeStudent(studentId, accessCode) {
     if (isTeacher || !activeStudentRoster || !studentUid) throw new Error("Öğrenci bağlantısı henüz hazır değil.");
     const id = String(studentId);
-    await set(ref(db, `studentSessions/${activeStudentRoster}/${studentUid}`), { studentId: id, accessCode });
+    const path = `studentSessions/${activeStudentRoster}/${studentUid}`;
+    await firebaseRequest("write", path, () => set(ref(db, path), { studentId: id, accessCode }));
     activateStudentIdentity(id);
     return true;
   },
   async loadQuestionProgress() {
     if (isTeacher || !activeStudentRoster || !activeStudentId) return {};
-    const snapshot = await get(ref(db, `studentQuestionData/${activeStudentRoster}/${activeStudentId}`));
+    const path = `studentQuestionData/${activeStudentRoster}/${activeStudentId}`;
+    const snapshot = await firebaseRequest("read", path, () => get(ref(db, path)));
     return snapshot.exists() ? { [activeStudentId]: snapshot.val() } : {};
   },
   async saveQuestionProgress(studentId, progress) {
     if (isTeacher || !activeStudentRoster || !studentUid || String(studentId) !== activeStudentId) throw new Error("Bu öğrenci profili için yetkin yok.");
-    await set(ref(db, `studentQuestionData/${activeStudentRoster}/${activeStudentId}`), progress);
+    const path = `studentQuestionData/${activeStudentRoster}/${activeStudentId}`;
+    await firebaseRequest("write", path, () => set(ref(db, path), progress));
   },
   getShareUrl() {
     if (testMode || !shareToken) return null;
@@ -368,6 +398,7 @@ window.raceCloud = {
     return url.href;
   },
 };
+window.dispatchEvent(new CustomEvent("firebase-cloud-ready", { detail: { appName: app.name, projectId: firebaseConfig.projectId } }));
 
 document.getElementById("firebaseLoginForm")?.addEventListener("submit", async event => {
   event.preventDefault();
@@ -483,8 +514,8 @@ onAuthStateChanged(auth, async user => {
     catch (error) {
       isTeacher = false;
       showLogin(true);
-      message("Öğretmen verisi açılamadı: Firebase Realtime Database kurallarını yayımla.");
-      console.error("Öğretmen verisi başlatılamadı:", error);
+      message(`Öğretmen verisi açılamadı (${error.code || "unknown"}). Firebase bağlantı kayıtlarını kontrol et.`);
+      reportFirebaseError("teacher initialization", `${testMode ? "testTeacherData" : "teacherData"}/${user.uid}`, error);
     }
     return;
   }
@@ -494,14 +525,14 @@ onAuthStateChanged(auth, async user => {
       await setPersistence(auth, browserLocalPersistence);
       await signInAnonymously(auth);
     } catch (error) {
-      message("Öğrenci bağlantısı kurulamadı. Firebase Authentication'da Anonymous girişini etkinleştir.");
-      console.error("Anonim Firebase girişi başarısız:", error);
+      message(`Firebase öğrenci girişi başarısız (${error.code || "unknown"}). Sayfayı yenileyip tekrar dene.`);
+      reportFirebaseError("anonymous sign-in", "Firebase Authentication", error);
     }
     return;
   }
   try { await watchStudentRoster(user); }
   catch (error) {
-    message("Yarış bağlantısı kurulamadı. Firebase kurallarını ve paylaşım bağlantısını kontrol et.");
-    console.error("Öğrenci bağlantısı kurulamadı:", error);
+    message(`Öğrenci bağlantısı kurulamadı (${error.code || "unknown"}). Sayfayı yenileyip tekrar dene.`);
+    reportFirebaseError("student initialization", requestedRoster ? `sharedRosters/${requestedRoster}` : "class-race/defaultRosterToken", error);
   }
 });
