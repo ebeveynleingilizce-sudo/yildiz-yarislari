@@ -18,9 +18,11 @@
 - [x] Öğretmen e-posta/parola ve Google girişi, öğrenci anonim oturumu ve canlı roster eşitlemesini ekle.
 - [x] Veriyi öğretmen Firebase UID'sine göre ayır; öğrenci bağlantılarıyla salt okunur yarış listesini paylaş.
 - [x] Öğretmen için yıldız kazanma yollarını düzenleme, yıldız miktarı ve etkin/pasif alanları ekle.
-- [ ] `database.rules.json` kurallarını Firebase Console'da yayımla ve Rules Emulator/gerçek iki hesapla doğrula.
+- [x] Hesap izolasyonlu `database.rules.json` kurallarını Firebase Realtime Database'e yayımla; Firebase CLI sözdizimini onayladı.
+- [ ] JDK 21+ kurup Rules Emulator'da A/B izinlerini çalıştır veya gerçek tunc/serkan hesaplarıyla dene.
 - [ ] Firebase Authentication içinde Anonymous, Email/Password ve Google sağlayıcılarını etkinleştir; yetkili alan adını doğrula.
-- [ ] Güncel dosyaları GitHub Pages'e yayımla ve iki ayrı öğretmen hesabı ile öğrenci paylaşım bağlantısını doğrula.
+- [x] Güncel dosyaları GitHub Pages'e gönder; GitHub Actions dağıtım işi başarılı.
+- [ ] Gerçek iki öğretmen hesabı ve öğrenci paylaşım bağlantısıyla canlı eşitlemeyi doğrula.
 
 ## Sunucu gerektiren işler
 
