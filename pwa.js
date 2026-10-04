@@ -9,8 +9,12 @@
   const testMode = teacherMode && query.get('test') === '1';
   const appTitle = testMode ? 'BLOK YARIŞI Test' : teacherMode ? 'BLOK YARIŞI · Öğretmen' : 'BLOK YARIŞI · Öğrenci';
   let installPrompt = null;
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const displayMode = window.matchMedia('(display-mode: standalone)');
+  let installed = displayMode.matches || navigator.standalone === true;
+  let prompting = false;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  const isSafari = isIOS && /Safari/i.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(navigator.userAgent);
 
   document.title = appTitle;
   const manifestLink = document.querySelector('link[rel="manifest"]');
@@ -33,7 +37,16 @@
     ? '📲 Öğretmen uygulamasını ekle'
     : '📲 Öğrenci uygulamasını ekle';
 
-  if (isStandalone || testMode) installButton.hidden = true;
+  function updateInstallButton() {
+    installButton.hidden = installed || testMode || !window.isSecureContext || (!installPrompt && !isSafari);
+    installButton.disabled = prompting;
+  }
+  updateInstallButton();
+  displayMode.addEventListener('change', event => {
+    installed = event.matches || navigator.standalone === true;
+    updateInstallButton();
+    if (installed) helpDialog.classList.remove('open');
+  });
 
   function showHelp() {
     helpDialog.classList.add('open');
@@ -46,25 +59,32 @@
   }
 
   window.addEventListener('beforeinstallprompt', event => {
+    if (installed || testMode || !window.isSecureContext) return;
     event.preventDefault();
     installPrompt = event;
+    updateInstallButton();
   });
 
   installButton.addEventListener('click', async () => {
-    if (installPrompt) {
-      installPrompt.prompt();
-      const choice = await installPrompt.userChoice;
-      if (choice.outcome === 'accepted') {
-        installButton.hidden = true;
-        const toast = document.getElementById('toast');
-        toast.textContent = `${teacherMode ? 'Öğretmen' : 'Öğrenci'} uygulaması ana ekrana ekleniyor! ⭐`;
-        toast.classList.add('show');
-        window.setTimeout(() => toast.classList.remove('show'), 2600);
-      }
-      installPrompt = null;
+    if (installed || testMode || prompting || !window.isSecureContext) return;
+    if (!installPrompt) {
+      if (isSafari) showHelp();
       return;
     }
-    showHelp();
+    const prompt = installPrompt;
+    installPrompt = null;
+    prompting = true;
+    installButton.disabled = true;
+    try {
+      await prompt.prompt();
+      const choice = await prompt.userChoice;
+      if (choice.outcome === 'accepted') installed = true;
+    } catch (error) {
+      console.warn('Kurulum penceresi açılamadı:', error);
+    } finally {
+      prompting = false;
+      updateInstallButton();
+    }
   });
 
   closeButton.addEventListener('click', hideHelp);
@@ -76,13 +96,13 @@
   });
 
   const instructions = document.getElementById('installInstructions');
-  instructions.textContent = isIOS
-    ? 'Safari’de Paylaş düğmesine dokun, menüde “Ana Ekrana Ekle”yi seç, “Web Uygulaması Olarak Aç” seçeneğini istersen etkinleştir ve Ekle’ye bas.'
-    : 'Android’de bu düğme gerçek kurulum penceresini açar. Masaüstünde tarayıcı menüsündeki “Uygulamayı yükle” seçeneğini kullanabilirsin.';
+  instructions.textContent = 'Paylaş → Ana Ekrana Ekle';
 
   window.addEventListener('appinstalled', () => {
-    installButton.hidden = true;
+    installed = true;
     installPrompt = null;
+    helpDialog.classList.remove('open');
+    updateInstallButton();
   });
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
