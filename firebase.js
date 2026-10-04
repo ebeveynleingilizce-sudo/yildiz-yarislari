@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {
   getAuth, GoogleAuthProvider, browserLocalPersistence, browserSessionPersistence,
-  onAuthStateChanged, setPersistence, signInAnonymously,
+  createUserWithEmailAndPassword, onAuthStateChanged, setPersistence, signInAnonymously,
   signInWithEmailAndPassword, signInWithPopup, signOut,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { getDatabase, get, onValue, ref, set, update } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
@@ -355,6 +355,11 @@ window.raceCloud = {
     await setPersistence(auth, rememberTeacher ? browserLocalPersistence : browserSessionPersistence);
     return signInWithEmailAndPassword(auth, email.trim(), password);
   },
+  async createTeacherAccount(email, password, rememberTeacher) {
+    if (!teacherMode || testMode) throw new Error("Hızlı öğretmen hesabı bu ekranda kullanılamıyor.");
+    await setPersistence(auth, rememberTeacher ? browserLocalPersistence : browserSessionPersistence);
+    return createUserWithEmailAndPassword(auth, email.trim(), password);
+  },
   async googleLogin(rememberTeacher) {
     await setPersistence(auth, rememberTeacher ? browserLocalPersistence : browserSessionPersistence);
     return signInWithPopup(auth, new GoogleAuthProvider());
@@ -410,6 +415,11 @@ window.raceCloud = {
 };
 window.dispatchEvent(new CustomEvent("firebase-cloud-ready", { detail: { appName: app.name, projectId: firebaseConfig.projectId } }));
 
+if (testMode) {
+  const signupButton = document.getElementById("firebaseTeacherSignup");
+  if (signupButton) signupButton.hidden = true;
+}
+
 document.getElementById("firebaseLoginForm")?.addEventListener("submit", async event => {
   event.preventDefault();
   const email = document.getElementById("firebaseTeacherEmail").value;
@@ -422,10 +432,38 @@ document.getElementById("firebaseLoginForm")?.addEventListener("submit", async e
     await window.raceCloud.login(email, passwordInput.value, rememberTeacher);
     passwordInput.value = "";
   } catch (error) {
-    message(error.code === "auth/invalid-credential" || error.code === "auth/wrong-password"
-      ? "E-posta veya parola hatalı. Firebase Authentication hesabını kontrol et."
+    message(error.code === "auth/invalid-credential" || error.code === "auth/wrong-password" || error.code === "auth/user-not-found"
+      ? "E-posta veya şifre hatalı. Hesabın yoksa “Hızlı hesap oluştur” seçeneğini kullan."
       : "Giriş başarısız: " + (error.message || error.code));
   } finally { button.disabled = false; }
+});
+
+document.getElementById("firebaseTeacherSignup")?.addEventListener("click", async event => {
+  const button = event.currentTarget;
+  const form = document.getElementById("firebaseLoginForm");
+  const email = document.getElementById("firebaseTeacherEmail");
+  const passwordInput = document.getElementById("firebaseTeacherPassword");
+  if (!form?.reportValidity?.()) return;
+  const loginButton = document.getElementById("firebaseLoginSubmit");
+  const googleButton = document.getElementById("googleTeacherLogin");
+  for (const control of [button, loginButton, googleButton]) if (control) control.disabled = true;
+  message("Öğretmen hesabı oluşturuluyor…");
+  try {
+    await window.raceCloud.createTeacherAccount(email.value, passwordInput.value, document.getElementById("rememberTeacher").checked);
+    passwordInput.value = "";
+    message("Hesap oluşturuldu; öğretmen panelin açılıyor…");
+  } catch (error) {
+    const messages = {
+      "auth/email-already-in-use": "Bu e-posta zaten kayıtlı. Giriş yapmayı dene.",
+      "auth/invalid-email": "Geçerli bir e-posta adresi yaz.",
+      "auth/weak-password": "Şifren en az 6 karakter olmalı.",
+      "auth/operation-not-allowed": "E-posta ve şifreyle kayıt Firebase Authentication ayarlarında etkin değil.",
+      "auth/network-request-failed": "Bağlantı kurulamadı. İnternetini kontrol edip yeniden dene.",
+    };
+    message(messages[error.code] || "Hesap oluşturulamadı: " + (error.message || error.code));
+  } finally {
+    for (const control of [button, loginButton, googleButton]) if (control) control.disabled = false;
+  }
 });
 
 document.getElementById("googleTeacherLogin")?.addEventListener("click", async event => {
