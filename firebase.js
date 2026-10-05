@@ -162,8 +162,11 @@ function publishStudentCodes() {
 
 async function publishStudentCredentials() {
   if (!isTeacher || testMode || !teacherUid || !shareToken) return;
-  const path = `studentCredentials/${shareToken}`;
-  await firebaseRequest("write", path, () => set(ref(db, path), { ownerUid: teacherUid, teacherId:teacherUid, classId:activeClassId, codes: studentAccessCodes }));
+  const path = "studentCredentials/" + shareToken;
+  const updates = { [path]: { ownerUid: teacherUid, teacherId:teacherUid, classId:activeClassId, codes: studentAccessCodes } };
+  const rosterSnapshot = await firebaseRequest("read", classPath(), () => get(ref(db, classPath())));
+  await syncStudentCodeLookup(updates, shareToken, rosterSnapshot.val()?.students || [], studentAccessCodes);
+  await firebaseRequest("write", path, () => update(ref(db), updates));
 }
 
 function activateStudentIdentity(studentId) {
@@ -200,6 +203,25 @@ function classPath(id = activeClassId) { if (!id || !teacherClasses[id]) throw n
 function emitClasses() {
   window.dispatchEvent(new CustomEvent("firebase-classes", { detail: { classes: Object.values(teacherClasses), activeClassId, teacherId: teacherUid } }));
 }
+async function syncStudentCodeLookup(updates, token, roster, codes) {
+  const path = "studentCredentials/" + token + "/codes";
+  const snapshot = await firebaseRequest("read", path, () => get(ref(db, path)));
+  const previous = snapshot.val() || {};
+  const nextByCode = new Map();
+  for (const student of Array.isArray(roster) ? roster : []) {
+    const id = String(student?.id ?? ""), code = String(codes?.[id] || "");
+    if (!id || !/^[A-Z2-9]{8}$/.test(code)) continue;
+    if (nextByCode.has(code) && nextByCode.get(code) !== id) throw new Error("STUDENT_CODE_COLLISION");
+    nextByCode.set(code, id);
+  }
+  for (const oldCode of Object.values(previous)) {
+    if (typeof oldCode === "string" && !nextByCode.has(oldCode)) updates["studentCodeLookup/" + oldCode] = null;
+  }
+  for (const [code, id] of nextByCode) {
+    updates["studentCodeLookup/" + code] = { ownerUid: teacherUid, rosterToken: token, studentId: id };
+  }
+}
+
 async function saveClassRoster(id, roster, codes, extra = {}) {
   const cls = teacherClasses[id];
   if (!cls) throw new Error("Sınıf bulunamadı.");
@@ -210,6 +232,7 @@ async function saveClassRoster(id, roster, codes, extra = {}) {
     updates["sharedRosters/"+cls.shareToken] = { ownerUid:teacherUid, teacherId:teacherUid, classId:id, className:cls.name, students, ways:extra.ways || [] };
     updates["studentCredentials/"+cls.shareToken] = { ownerUid:teacherUid, teacherId:teacherUid, classId:id, codes };
   }
+  if (!testMode) await syncStudentCodeLookup(updates, cls.shareToken, students, codes);
   Object.assign(updates, extra.updates || {});
   await firebaseRequest("write",path,()=>update(ref(db),updates));
 }
@@ -464,7 +487,7 @@ window.raceCloud = {
     for(const [id,roster,codes,ways] of [[sourceId,others,reconcileStudentCodes(others,src.studentAccessCodes),src.ways],[targetId,target,reconcileStudentCodes(target,dest.studentAccessCodes),dest.ways]]) {
       const c=teacherClasses[id];changes[classPath(id)+"/students"]=roster;changes[classPath(id)+"/studentAccessCodes"]=codes;
       if(id===defaultClassId){changes[accountPath()+"/students"]=roster;changes[accountPath()+"/studentAccessCodes"]=codes;}
-      if(!testMode){changes["sharedRosters/"+c.shareToken]={ownerUid:teacherUid,teacherId:teacherUid,classId:id,className:c.name,students:roster,ways:ways||defaultWays};changes["studentCredentials/"+c.shareToken]={ownerUid:teacherUid,teacherId:teacherUid,classId:id,codes};}
+      if(!testMode){changes["sharedRosters/"+c.shareToken]={ownerUid:teacherUid,teacherId:teacherUid,classId:id,className:c.name,students:roster,ways:ways||defaultWays};changes["studentCredentials/"+c.shareToken]={ownerUid:teacherUid,teacherId:teacherUid,classId:id,codes};await syncStudentCodeLookup(changes,c.shareToken,roster,codes);}
     }
     if(!testMode){const progress=(await get(ref(db,"studentQuestionData/"+cls.shareToken+"/"+student.id))).val();if(progress)changes["studentQuestionData/"+to.shareToken+"/"+newId]=progress;}
     await update(ref(db),changes);return newId;
@@ -497,22 +520,26 @@ window.raceCloud = {
   async authorizeStudent(studentId, accessCode) {
     if (isTeacher || !studentUid) throw new Error("Öğrenci bağlantısı henüz hazır değil.");
     let token = activeStudentRoster || requestedRoster, id = String(studentId || "");
-    const parts = String(accessCode || "").trim().split(":");
+    const parts = String(accessCode || "").trim().toUpperCase().split(":");
     if (parts.length === 3) [token, id, accessCode] = parts;
+    else {
+      accessCode = parts[0];
+      if (!/^[A-Z2-9]{8}$/.test(accessCode)) throw new Error("STUDENT_CODE_INVALID");
+      const lookupPath = "studentCodeLookup/" + accessCode;
+      let lookupSnapshot;
+      try { lookupSnapshot = await firebaseRequest("read", lookupPath, () => get(ref(db, lookupPath))); }
+      catch (error) { if (error.code === "PERMISSION_DENIED") throw new Error("STUDENT_CODE_INVALID"); throw error; }
+      const lookup = lookupSnapshot.val();
+      if (!lookup || typeof lookup.rosterToken !== "string" || typeof lookup.studentId !== "string") throw new Error("STUDENT_CODE_INVALID");
+      token = lookup.rosterToken; id = lookup.studentId;
+    }
     token = token?.toLowerCase();
     if (!/^[a-f0-9]{32,64}$/.test(token || "") || !/^\d+$/.test(id) || !/^[A-Z2-9]{8}$/.test(accessCode)) throw new Error("STUDENT_CODE_INVALID");
     requireStudentConnection();
-    const path = `studentSessions/${token}/${studentUid}`;
+    const path = "studentSessions/" + token + "/" + studentUid;
     await firebaseRequest("write", path, () => set(ref(db, path), { studentId: id, accessCode }));
     await connectStudentRoster(token, true);
     return true;
-  },
-  getStudentAccessUrl(studentId) {
-    if (!isTeacher || testMode || !shareToken || !/^\d+$/.test(String(studentId))) return "";
-    const url = new URL(location.href);
-    url.search = "?roster=" + encodeURIComponent(shareToken) + "&student=" + encodeURIComponent(String(studentId));
-    url.hash = "";
-    return url.href;
   },
   getStudentConnectionCode(studentId, code) {
     if (!isTeacher || testMode || !shareToken || studentAccessCodes[String(studentId)] !== code) return "";
