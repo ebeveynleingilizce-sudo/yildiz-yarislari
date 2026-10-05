@@ -394,7 +394,7 @@ test('Sosyal Bilgiler is selectable and its sample topic starts a test', () => {
   assert.match(html, /<option>Sosyal Bilgiler<\/option>/);
   assert.match(html, /<script src="\.\/questions\.js\?v=21"><\/script>/);
   assert.match(html, /\[hidden\]\{display:none!important\}/);
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v36'/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v37'/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8'), /cp .*questions\.js .*_site\//);
   const { ctx, get } = makeApp('?teacher=1&test=1');
   ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
@@ -700,18 +700,18 @@ test('Firebase config and rules isolate private teacher accounts and expose only
   assert.match(firebase, /signInWithPopup/);
   assert.match(firebase, /const teacherCollection = testMode \? "testTeacherData" : "teacherData"/);
   assert.match(firebase, /\$\{teacherCollection\}\/\$\{teacherUid\}/);
-  assert.match(firebase, /sharedRosters\/\$\{token\}/);
+  assert.match(firebase, /"sharedRosters\/" \+ code/);
   assert.match(firebase, /classPath/);
   assert.match(firebase, /Object\.hasOwn\(data,"ways"\)/);
   assert.match(firebase, /setPersistence\(auth, browserLocalPersistence\)/);
-  assert.match(firebase, /studentQuestionData\/\$\{activeStudentRoster\}\/\$\{activeStudentId\}/);
+  assert.match(firebase, /studentQuestionData\/\$\{roster\}\/\$\{id\}/);
   assert.match(html, /await window\.raceCloud\.saveQuestionProgress\(String\(studentId\),progress\)/);
   assert.ok(rules.rules.studentQuestionData, 'question progress has an account-scoped database path');
   assert.match(rules.rules.studentCredentials.$token['.read'], /classTokens/); assert.match(rules.rules.studentCredentials.$token['.read'], /data\.child\('ownerUid'\)\.val\(\) === auth\.uid/);
   assert.match(rules.rules.studentSessions.$token.$uid['.write'], /studentCredentials.*codes/);
   assert.match(rules.rules.studentQuestionData.$token.$studentId['.read'], /studentSessions/);
   assert.match(rules.rules.studentQuestionData.$token.$studentId['.write'], /child\('studentId'\)\.val\(\) === \$studentId/);
-  assert.match(firebase, /authorizeStudent\(studentId, accessCode\)/);
+  assert.match(firebase, /authorizeStudent\(_studentId, accessCode\)/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'firebase.json'), 'utf8'), /database\.rules\.json/);
 });
 

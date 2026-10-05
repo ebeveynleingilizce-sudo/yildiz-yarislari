@@ -12,7 +12,7 @@ test('tunc@test.com: 5/A and 6/B isolate students, codes, progress, moves and an
  for(const [id,name] of [['1','Ahmet'],['2','Mehmet']]){await page.locator('[data-name="'+id+'"]').fill(name);await page.locator('[data-name="'+id+'"]').press('Tab');}
  await expect(page.locator('#lanes')).toContainText('Ahmet');
  await expect.poll(()=>page.evaluate(()=>window.__testCloud.data().teacherData['teacher-a'].students.map(s=>s.name).join(','))).toBe('Ahmet,Mehmet');
- const ahmetCode=await page.evaluate(()=>{const data=window.__testCloud.data().teacherData['teacher-a'];return window.raceCloud.getStudentConnectionCode('1',data.studentAccessCodes['1']);});
+ const ahmetCode=await page.evaluate(()=>{const data=window.__testCloud.data().teacherData['teacher-a'];return data.studentAccessCodes['1'];});
  const classB=await create(page,'6/B');
  await expect(page.locator('.student-card')).toHaveCount(0);
  for(const name of ['Ayşe','Zeynep']){

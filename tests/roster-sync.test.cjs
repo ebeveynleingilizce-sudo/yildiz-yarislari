@@ -38,7 +38,11 @@ test('removal publishes no stale roster, revokes its code, and leaves another te
   const after = c.env.__testCloud.data();
   assert.equal(after.studentCredentials['a'.repeat(32)].codes[1], undefined);
   assert.deepEqual(after.teacherData['teacher-b'], other);
-  assert.equal(c.env.__testCloud.writes.length, 1, 'one atomic roster mutation');
+  const rosterCommits = c.env.__testCloud.writes.filter(write => Object.keys(write.updates).some(path => /\/classData\/[^/]+\/students$/.test(path)));
+  assert.equal(rosterCommits.length, 1, 'one authoritative roster commit');
+  assert.ok(Object.keys(rosterCommits[0].updates).includes('studentCredentials/TESTCODE'), 'revocation accompanies the roster commit');
+  assert.deepEqual(after.studentCredentials.TESTCODE.codes, {});
+  assert.deepEqual(after.sharedRosters.TESTCODE.students, []);
 });
 test('a rejected roster mutation restores confirmed data and preserves credentials', async () => {
   const c = client(); await c.ready();

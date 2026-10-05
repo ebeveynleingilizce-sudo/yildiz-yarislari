@@ -53,6 +53,13 @@
         },
         ".write": "auth != null && root.child('teacherData').child(auth.uid).child('classTokens').child($token).isString() && root.child('sharedRosters').child($token).child('ownerUid').val() === auth.uid"
       }
+    },
+    "studentCodeLookup": {
+      "$code": {
+        ".read": "auth != null && ((auth.token.email != null && data.child('ownerUid').val() === auth.uid) || (auth.token.firebase.sign_in_provider === 'anonymous' && data.hasChildren(['ownerUid','rosterToken','studentId']) && root.child('studentCredentials').child(data.child('rosterToken').val()).child('ownerUid').val() === data.child('ownerUid').val() && root.child('studentCredentials').child(data.child('rosterToken').val()).child('codes').child(data.child('studentId').val()).val() === $code))",
+        ".write": "auth != null && auth.token.email != null && ((!newData.exists() && (!data.exists() || data.child('ownerUid').val() === auth.uid)) || (newData.child('ownerUid').val() === auth.uid && (!data.exists() || data.child('ownerUid').val() === auth.uid) && (root.child('teacherData').child(auth.uid).child('shareToken').val() === newData.child('rosterToken').val() || root.child('teacherData').child(auth.uid).child('classTokens').child(newData.child('rosterToken').val()).isString())))",
+        ".validate": "newData.hasChildren(['ownerUid','rosterToken','studentId']) && newData.child('ownerUid').isString() && newData.child('rosterToken').isString() && newData.child('studentId').isString()"
+      }
     }
   }
 }

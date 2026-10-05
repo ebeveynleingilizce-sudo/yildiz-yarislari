@@ -26,74 +26,110 @@ function client(search = '?teacher=1', storage = new Map()) {
   vm.runInNewContext(source, ctx);
   return { env, sdk, events, storage, ready: () => Promise.all(env.__testCloud.pending) };
 }
-test('removal publishes no stale roster, revokes its code, and leaves another teacher intact', async () => {
+test('a short code publishes a private one-student roster; removal revokes it without affecting another teacher', async () => {
   const c = client(); await c.ready();
   await c.env.raceCloud.login('teacher-a@example.invalid', 'test-only-password');
   const before = c.env.__testCloud.data(), other = before.teacherData['teacher-b'];
-  c.events.length = 0; c.env.__testCloud.writes.length = 0;
-  await c.env.raceCloud.write(before.teacherData['teacher-a'].students.filter(s => s.id !== 1));
-  const snapshots = c.events.filter(event => event.type === 'firebase-roster').map(event => event.detail.map(s => s.id));
+  const cls = before.teacherData['teacher-a'], classId = cls.defaultClassId;
+  assert.equal(before.sharedRosters.TESTCODE.students.length, 1);
+  assert.equal(before.sharedRosters.TESTCODE.students[0].name, 'Test Öğrenci A');
+  assert.equal(before.sharedRosters.TESTCODE.students[0].id, '1');
+  assert.equal(before.studentCredentials.TESTCODE.codes['1'], 'TESTCODE');
+  assert.equal(before.teacherData['teacher-a'].classTokens.TESTCODE, classId);
+  c.events.length = 0;
+  const roster = cls.classData[classId].students.filter(student => student.id !== 1);
+  await c.env.raceCloud.write(roster);
+  const snapshots = c.events.filter(event => event.type === 'firebase-roster').map(event => event.detail.map(student => student.id));
   assert.ok(snapshots.length > 0);
-  assert.ok(snapshots.every(ids => !ids.includes(1)), `deleted student reappeared in snapshots: ${JSON.stringify(snapshots)}`);
+  assert.ok(snapshots.every(ids => !ids.includes(1)), `removed student reappeared: ${JSON.stringify(snapshots)}`);
   const after = c.env.__testCloud.data();
-  assert.equal(after.studentCredentials['a'.repeat(32)].codes[1], undefined);
-  assert.equal(after.studentCodeLookup.TESTCODE, undefined);
+  assert.deepEqual(after.studentCredentials.TESTCODE.codes, {});
+  assert.deepEqual(after.sharedRosters.TESTCODE.students, []);
+  assert.equal(after.teacherData['teacher-a'].classTokens.TESTCODE, classId);
   assert.deepEqual(after.teacherData['teacher-b'], other);
-  assert.equal(c.env.__testCloud.writes.length, 1, 'one atomic roster mutation');
+  assert.equal(after.teacherData['teacher-a'].classData[classId].students.length, 1);
 });
-test('a student cannot read a class before connecting, or another class after connecting', async () => {
-  const c = client(''); await c.ready();
-  const a = 'a'.repeat(32), b = 'b'.repeat(32);
+
+test('a clean anonymous student enters by short code only and cannot read other students or classes', async () => {
+  const teacher = client(); await teacher.ready();
+  await teacher.env.raceCloud.login('teacher-a@example.invalid', 'test-only-password');
+  const c = client('', teacher.storage); await c.ready();
   assert.ok(c.events.some(event => event.type === 'firebase-student-access-required'));
   assert.ok(!c.events.some(event => event.type === 'firebase-roster'));
-  for (const token of [a, b]) await assert.rejects(c.sdk.get(c.sdk.ref(null, `sharedRosters/${token}`)), { code: 'PERMISSION_DENIED' });
-  await assert.rejects(c.env.raceCloud.authorizeStudent('', `${a}:1:WRONGCOD`), { code: 'PERMISSION_DENIED' });
+  await assert.rejects(c.sdk.get(c.sdk.ref(null, 'sharedRosters')), { code: 'PERMISSION_DENIED' });
+  await assert.rejects(c.sdk.get(c.sdk.ref(null, 'studentCodeLookup')), { code: 'PERMISSION_DENIED' });
+  await assert.rejects(c.env.raceCloud.authorizeStudent('', 'NOPECODE'), { message: 'STUDENT_CODE_INVALID' });
   await c.env.raceCloud.authorizeStudent('', 'TESTCODE');
-  assert.ok(c.events.some(event => event.type === 'firebase-account-scope' && event.detail.scope === `student-${a}-1`));
-  await assert.rejects(c.sdk.get(c.sdk.ref(null, `sharedRosters/${b}`)), { code: 'PERMISSION_DENIED' });
+  assert.ok(c.events.some(event => event.type === 'firebase-account-scope' && event.detail.scope === 'student-TESTCODE'));
+  const rosterEvent = c.events.filter(event => event.type === 'firebase-roster').at(-1);
+  assert.equal(rosterEvent.detail.length, 1);
+  assert.equal(rosterEvent.detail[0].name, 'Test Öğrenci A');
+  await assert.rejects(c.sdk.get(c.sdk.ref(null, 'sharedRosters/BCODEONE')), { code: 'PERMISSION_DENIED' });
   await assert.rejects(c.sdk.get(c.sdk.ref(null, 'teacherData/teacher-b')), { code: 'PERMISSION_DENIED' });
-  await assert.rejects(c.sdk.get(c.sdk.ref(null, `studentQuestionData/${a}/2`)), { code: 'PERMISSION_DENIED' });
-  await assert.rejects(c.sdk.set(c.sdk.ref(null, `studentQuestionData/${b}/1`), { xpEarned: 99 }), { code: 'PERMISSION_DENIED' });
+  await assert.rejects(c.sdk.get(c.sdk.ref(null, 'studentQuestionData/TESTCODE/2')), { code: 'PERMISSION_DENIED' });
+  await assert.rejects(c.sdk.set(c.sdk.ref(null, 'studentQuestionData/BCODEONE/1'), { xpEarned: 99 }), { code: 'PERMISSION_DENIED' });
   await c.env.raceCloud.saveQuestionProgress('1', { xpEarned: 1, solvedQuestionIds: ['q1'] });
   const reloaded = client('', c.storage); await reloaded.ready();
   assert.ok(reloaded.events.some(event => event.type === 'firebase-student-authorized' && event.detail.studentId === '1'));
   assert.equal((await reloaded.env.raceCloud.loadQuestionProgress())['1'].xpEarned, 1);
 });
 
-test('removal revokes old sessions and question writes, including after refresh', async () => {
+test('removing a student revokes the old code session and question writes after refresh', async () => {
   const teacher = client(); await teacher.ready();
   await teacher.env.raceCloud.login('teacher-a@example.invalid', 'test-only-password');
   const student = client('', teacher.storage); await student.ready();
-  const token = 'a'.repeat(32);
   await student.env.raceCloud.authorizeStudent('', 'TESTCODE');
-  await teacher.env.raceCloud.write(teacher.env.__testCloud.data().teacherData['teacher-a'].students.filter(s => s.id !== 1));
-  await assert.rejects(student.sdk.get(student.sdk.ref(null, `sharedRosters/${token}`)), { code: 'PERMISSION_DENIED' });
-  await assert.rejects(student.sdk.set(student.sdk.ref(null, `studentQuestionData/${token}/1`), { xpEarned: 99 }), { code: 'PERMISSION_DENIED' });
+  const teacherRecord = teacher.env.__testCloud.data().teacherData['teacher-a'];
+  const roster = teacherRecord.classData[teacherRecord.defaultClassId].students.filter(item => item.id !== 1);
+  await teacher.env.raceCloud.write(roster);
+  await assert.rejects(student.sdk.get(student.sdk.ref(null, 'sharedRosters/TESTCODE')), { code: 'PERMISSION_DENIED' });
+  await assert.rejects(student.sdk.set(student.sdk.ref(null, 'studentQuestionData/TESTCODE/1'), { xpEarned: 99 }), { code: 'PERMISSION_DENIED' });
   await assert.rejects(student.env.raceCloud.authorizeStudent('', 'TESTCODE'), { message: 'STUDENT_CODE_INVALID' });
   const reloaded = client('', teacher.storage); await reloaded.ready();
   assert.ok(!reloaded.events.some(event => event.type === 'firebase-student-authorized'));
   assert.ok(reloaded.events.some(event => event.type === 'firebase-student-access-required'));
 });
 
-test('a rejected roster mutation restores confirmed data and preserves credentials', async () => {
+test('a rejected roster mutation keeps the previously confirmed roster and short-code records', async () => {
   const c = client(); await c.ready();
   await c.env.raceCloud.login('teacher-a@example.invalid', 'test-only-password');
-  const before = c.env.__testCloud.data(); c.events.length = 0;
+  const before = c.env.__testCloud.data();
   c.env.__testCloud.failNextWrite = true;
-  await assert.rejects(c.env.raceCloud.write(before.teacherData['teacher-a'].students.slice(1)), { code: 'PERMISSION_DENIED' });
+  await assert.rejects(c.env.raceCloud.write(before.teacherData['teacher-a'].classData[before.teacherData['teacher-a'].defaultClassId].students.slice(1)), { code: 'PERMISSION_DENIED' });
   assert.deepEqual(c.env.__testCloud.data(), before);
-  assert.deepEqual(c.events.filter(event => event.type === 'firebase-roster').at(-1).detail.map(s => s.id), [1, 2]);
 });
 
-test('a forged teacher token cannot expose or overwrite another teacher class', async () => {
-  const c = client(''); await c.ready();
-  await assert.rejects(c.sdk.set(c.sdk.ref(null, 'teacherData/anonymous-test'), { shareToken: 'b'.repeat(32) }), { code: 'PERMISSION_DENIED' });
+test('a code collision with another teacher retries without overwriting their student', async () => {
+  const storage = new Map();
+  const teacherB = client('?teacher=1', storage); await teacherB.ready();
+  await teacherB.env.raceCloud.login('teacher-b@example.invalid', 'test-only-password');
+  const teacherA = client('?teacher=1', storage); await teacherA.ready();
+  await teacherA.env.raceCloud.login('teacher-a@example.invalid', 'test-only-password');
+  const account = teacherA.env.__testCloud.data().teacherData['teacher-a'];
+  const classId = account.defaultClassId, classPath = `teacherData/teacher-a/classData/${classId}`;
+  await teacherA.sdk.update(teacherA.sdk.ref(null, classPath + '/studentAccessCodes'), { 1: 'BCODEONE' });
+  const changed = account.classData[classId].students.map(student => ({ ...student, name: student.id === 1 ? student.name + ' Updated' : student.name }));
+  await teacherA.env.raceCloud.write(changed);
+  const data = teacherA.env.__testCloud.data();
+  assert.notEqual(data.teacherData['teacher-a'].classData[classId].studentAccessCodes['1'], 'BCODEONE');
+  assert.equal(data.sharedRosters.BCODEONE.students[0].name, 'Öğretmen B Öğrenci 1');
+  assert.equal(data.studentCredentials.BCODEONE.codes['1'], 'BCODEONE');
+});
+
+test('student entry has no special-link UI or query dependency', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+  assert.match(html, /id="studentAccessCode"/);
+  assert.doesNotMatch(html, /studentAccessName|studentAccessName/);
+  assert.doesNotMatch(html, /firebase-share-link|firebase-share-copy|data-copy-student-link|Bağlantıyı kopyala/);
+  assert.doesNotMatch(source, /studentCodeLookup|requestedRoster|getShareUrl|firebase-share-copy/);
+});
+
+test('short-code paths remain private to the owning teacher and are not an enumerable lookup', async () => {
   const teacher = client(); await teacher.ready();
   await teacher.env.raceCloud.login('teacher-a@example.invalid', 'test-only-password');
-  await teacher.sdk.update(teacher.sdk.ref(null, 'teacherData/teacher-a'), { shareToken: 'b'.repeat(32) });
-  for (const path of [`sharedRosters/${'b'.repeat(32)}`, `studentCredentials/${'b'.repeat(32)}`, `studentQuestionData/${'b'.repeat(32)}`]) {
-    await assert.rejects(teacher.sdk.get(teacher.sdk.ref(null, path)), { code: 'PERMISSION_DENIED' });
-  }
-  await assert.rejects(teacher.sdk.set(teacher.sdk.ref(null, `studentCredentials/${'b'.repeat(32)}`), { ownerUid: 'teacher-a', codes: { 1: 'STOLEN' } }), { code: 'PERMISSION_DENIED' });
-  await assert.rejects(teacher.sdk.set(teacher.sdk.ref(null, `sharedRosters/${'b'.repeat(32)}`), { ownerUid: 'teacher-a', students: [] }), { code: 'PERMISSION_DENIED' });
+  const c = client('', teacher.storage); await c.ready();
+  await c.env.raceCloud.authorizeStudent('', 'TESTCODE');
+  await assert.rejects(c.sdk.get(c.sdk.ref(null, 'sharedRosters/OTHER?')), { code: 'PERMISSION_DENIED' });
+  await assert.rejects(c.sdk.set(c.sdk.ref(null, 'studentSessions/TESTCODE/anonymous-test'), { studentId: '2', accessCode: 'TESTCODE' }), { code: 'PERMISSION_DENIED' });
+  await assert.rejects(c.sdk.get(c.sdk.ref(null, 'studentCredentials/TESTCODE')), { code: 'PERMISSION_DENIED' });
 });
