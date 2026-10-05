@@ -27,3 +27,15 @@ GitHub Actions, `main` dalına yapılan her gönderimde statik siteyi GitHub Pag
 ## Testler ve doğrulama sınırları
 
 Kaynak test komutu: `node --test tests/game.test.cjs`. Bu testler HTML/oyun kodunu, editör etkileşimlerini ve güvenlik kurallarının yapısal beklentilerini çalıştırır. Firebase Authentication, Realtime Database Rules Emulator ve gerçek cihaz PWA kurulumunu bu Node testleri doğrulamaz; gerçek Firebase hesaplarıyla giriş ve hesaplar arası izolasyon ayrıca doğrulanmalıdır.
+
+## Öğrenci silme regresyon testleri
+
+Yerel taklit Firebase verisiyle çalışır; gerçek hesaplara veya üretim verisine erişmez.
+
+```sh
+npm ci
+npx playwright install chromium webkit
+npm test
+```
+
+Silme testi, üç ardışık silme ve Firebase tekrar bildirimleri boyunca kalan satırların, parkurların, karakterlerin ve animasyonların korunmasını denetler.

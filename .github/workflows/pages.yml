@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: 24
       - name: Run source tests
-        run: node --test tests/game.test.cjs
+        run: node --test tests/*.test.cjs
       - name: Prepare static site
         run: |
           mkdir -p _site

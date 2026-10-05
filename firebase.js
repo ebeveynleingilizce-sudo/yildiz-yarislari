@@ -1,3 +1,7 @@
+let rosterWriteQueue = Promise.resolve();
+let publishedRoster = null;
+let pendingRosterWrites = 0;
+let queuedRoster = null;
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {
   getAuth, GoogleAuthProvider, browserLocalPersistence, browserSessionPersistence,
@@ -84,10 +88,15 @@ function showLogin(show) {
   if (settings && teacherMode) settings.style.display = show ? "none" : "";
 }
 
-function publishRoster(raw) {
+function publishRoster(raw, force = false) {
   let roster = raw;
   if (!Array.isArray(roster) && roster && typeof roster === "object") roster = Object.values(roster);
   if (Array.isArray(roster) && roster.length) {
+    const serialized = JSON.stringify(roster);
+    // Ignore intermediate echoes when several local roster changes are queued.
+    if (!force && pendingRosterWrites && serialized !== JSON.stringify(queuedRoster)) return;
+    if (serialized === publishedRoster) return;
+    publishedRoster = serialized;
     window.dispatchEvent(new CustomEvent("firebase-roster", { detail: roster }));
   }
 }
@@ -164,6 +173,7 @@ function activateStudentIdentity(studentId) {
 }
 
 function setLocalScope(scope) {
+  publishedRoster = null;
   suppressRosterSave = true;
   window.dispatchEvent(new CustomEvent("firebase-account-scope", { detail: { scope } }));
   queueMicrotask(() => { suppressRosterSave = false; });
@@ -367,15 +377,38 @@ window.raceCloud = {
   async logout() { await signOut(auth); },
   async write(roster) {
     if (!isTeacher || !teacherUid || !shareToken) throw new Error("Öğretmen hesabı bağlanmadı.");
-    if (!testMode) {
-      studentAccessCodes = reconcileStudentCodes(roster, studentAccessCodes);
-      const teacherPath = `teacherData/${teacherUid}`;
-      await firebaseRequest("write", teacherPath, () => update(ref(db, teacherPath), { studentAccessCodes }));
-      await publishStudentCredentials();
-      publishStudentCodes();
-    }
-    await publishTeacherData({ students: roster });
-    return true;
+    const uid = teacherUid, token = shareToken;
+    const students = JSON.parse(JSON.stringify(roster));
+    pendingRosterWrites++;
+    queuedRoster = students;
+    const operation = rosterWriteQueue.catch(() => {}).then(async () => {
+      if (!isTeacher || teacherUid !== uid || shareToken !== token) throw new Error("Öğretmen hesabı değişti.");
+      const path = `${testMode ? "testTeacherData" : "teacherData"}/${uid}`;
+      const updates = { [`${path}/students`]: students };
+      if (!testMode) {
+        const codes = reconcileStudentCodes(students, studentAccessCodes);
+        updates[`${path}/studentAccessCodes`] = codes;
+        updates[`sharedRosters/${token}/ownerUid`] = uid;
+        updates[`sharedRosters/${token}/students`] = students;
+        updates[`studentCredentials/${token}`] = { ownerUid: uid, codes };
+      }
+      try { await firebaseRequest("write", path, () => update(ref(db), updates)); }
+      catch (error) {
+        // Restore confirmed state after a rejected optimistic mutation.
+        const confirmed = await firebaseRequest("read", path, () => get(ref(db, path)));
+        if (teacherUid === uid && confirmed.exists()) {
+          publishedRoster = null;
+          publishRoster(confirmed.val().students, true);
+        }
+        throw error;
+      }
+      return true;
+    });
+    rosterWriteQueue = operation.finally(() => {
+      pendingRosterWrites--;
+      if (!pendingRosterWrites) queuedRoster = null;
+    });
+    return rosterWriteQueue;
   },
   async rotateStudentCode(studentId) {
     if (!isTeacher || testMode || !teacherUid || !shareToken) throw new Error("Öğretmen hesabı bağlanmadı.");
