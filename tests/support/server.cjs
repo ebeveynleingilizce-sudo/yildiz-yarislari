@@ -2,7 +2,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
-const allowed = new Set(['index.html', 'pwa.js', 'questions.js', 'service-worker.js',
+const allowed = new Set(['index.html', 'classes-ui.js', 'pwa.js', 'questions.js', 'service-worker.js',
   'manifest-student.webmanifest', 'manifest-teacher.webmanifest', 'manifest-teacher-test.webmanifest',
   'app-icon.svg', 'teacher-icon.svg', 'minecraft-test-icon.svg']);
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
@@ -14,7 +14,7 @@ http.createServer((request, response) => {
   if (file === 'firebase.js') {
     response.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' });
     const source = fs.readFileSync(path.join(root, 'firebase.js'), 'utf8').replace(/import\s+[\s\S]*?from\s+"[^"]+";/g, '');
-    response.end('import "./__test_sdk.js";\nconst { initializeApp, getAuth, GoogleAuthProvider, browserLocalPersistence, browserSessionPersistence, createUserWithEmailAndPassword, onAuthStateChanged, setPersistence, signInAnonymously, signInWithEmailAndPassword, signInWithPopup, signOut, getDatabase, get, onValue, ref, set, update } = window.__firebaseSdk;\nconst firebaseConfig = { projectId: "local-test-double" };\n' + source);
+    response.end('import "./__test_sdk.js";\nconst { initializeApp, getAuth, GoogleAuthProvider, browserLocalPersistence, browserSessionPersistence, createUserWithEmailAndPassword, onAuthStateChanged, setPersistence, signInAnonymously, signInWithEmailAndPassword, signInWithPopup, signOut, getDatabase, get, onValue, ref, runTransaction, set, update } = window.__firebaseSdk;\nconst firebaseConfig = { projectId: "local-test-double" };\n' + source);
     return;
   }
   if (file === '__test_sdk.js') {

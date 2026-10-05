@@ -71,11 +71,13 @@ async function fireAsync(element, name, eventTarget = target({}), extra = {}) {
 }
 function studentsOf(storage) { return JSON.parse(storage.get('class-race-v1')); }
 
-test('inline JavaScript parses and student screen renders ten lanes', () => {
+test('inline JavaScript parses and a new student is gated behind connection', () => {
   assert.doesNotThrow(() => new vm.Script(source));
   const { get, ctx } = makeApp('');
-  assert.equal((get('lanes').innerHTML.match(/class="lane student-card"/g) ?? []).length, 10);
-  assert.equal(get('studentCount').textContent, '10 OYUNCU');
+  assert.equal((get('lanes').innerHTML.match(/class="lane student-card"/g) ?? []).length, 0);
+  assert.equal(get('raceApp').hidden, true);
+  assert.ok(get('studentAccessOverlay').classList.contains('open'));
+  assert.equal(get('studentCount').textContent, '0 OYUNCU');
   assert.ok(ctx.document.body.classList.contains('minecraft-mode'));
   assert.ok(!ctx.document.body.classList.contains('teacher-mode'));
   assert.match(html, /Yıldız Kazanma Yolları/);
@@ -325,6 +327,39 @@ test('student question XP feedback waits for Firebase confirmation', async () =>
   assert.equal(JSON.parse(storage.get('question-progress-v1:class-race-v1'))['2'].xpEarned, 1);
 });
 
+test('revocation during an XP write closes the race without reviving a question or crashing', async () => {
+  const roster = [{ id: 2, name: 'Test', emoji: 'mc-steve', stars: 0, xp: 0, lifetimeStars: 0 }];
+  for (const reject of [false, true]) {
+    const { ctx, get } = makeApp('', roster);
+    ctx.window.listeners['firebase-student-authorized']({ detail: { studentId: '2' } });
+    let finish;
+    ctx.window.raceCloud = { saveQuestionProgress: () => new Promise((resolve, rejectWrite) => {
+      finish = () => reject ? rejectWrite(Object.assign(new Error('revoked'), { code: 'PERMISSION_DENIED' })) : resolve();
+    }) };
+    ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
+      id: 'revoked_' + i, lesson: 'Math', topic: 'Topic', question: 'Question?', choices: ['YES', 'NO'], correctAnswer: 0,
+    }));
+    get('qbLesson').value = 'Math'; fire(get('qbLesson'), 'change');
+    get('qbTopic').value = 'Topic'; fire(get('qbStart'), 'click');
+    const correct = get('qbChoices').choiceButtons.find(button => button.label.includes('YES'));
+    const pending = fireAsync(get('qbChoices'), 'click', target({ '[data-answer]': { dataset: { answer: correct.dataset.answer } } }));
+    ctx.window.listeners['firebase-student-access-required']({});
+    finish(); await pending;
+    assert.equal(get('raceApp').hidden, true);
+    assert.ok(!get('questionBankOverlay').classList.contains('open'));
+    assert.ok(get('studentAccessOverlay').classList.contains('open'));
+    assert.doesNotMatch(get('qbFeedback').textContent, /\+1 XP/);
+  }
+});
+
+test('normalizing a Firebase snapshot does not echo a roster write back to Firebase', () => {
+  const { ctx, get } = makeApp();
+  ctx.window.dispatched = null;
+  ctx.window.listeners['firebase-roster']({ detail: [{ id: 1, name: 'Legacy', emoji: '🐱', stars: '2' }] });
+  assert.match(get('lanes').innerHTML, /Legacy/);
+  assert.equal(ctx.window.dispatched, null, 'snapshot normalization must not dispatch firebase-local-save');
+});
+
 test('student bank binds the test to the code-authorized student only', async () => {
   const roster = [
     { id: 1, name: 'Ayşe', emoji: 'mc-alex', stars: 0, xp: 0, lifetimeStars: 0 },
@@ -360,7 +395,7 @@ test('Sosyal Bilgiler is selectable and its sample topic starts a test', () => {
   assert.match(html, /<option>Sosyal Bilgiler<\/option>/);
   assert.match(html, /<script src="\.\/questions\.js\?v=21"><\/script>/);
   assert.match(html, /\[hidden\]\{display:none!important\}/);
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v30'/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v31'/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8'), /cp .*questions\.js .*_site\//);
   const { ctx, get } = makeApp('?teacher=1&test=1');
   ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
@@ -430,7 +465,8 @@ test('teacher accounts and student roster links use separate local storage names
   const { get, storage, ctx } = makeApp();
   const original = storage.get('class-race-v1');
   ctx.window.listeners['firebase-account-scope']({ detail: { scope: 'teacher-account-a' } });
-  const accountA = JSON.parse(storage.get('class-race-v1:teacher-account-a'));
+  assert.equal(storage.get('class-race-v1:teacher-account-a'), undefined, 'scope loading does not publish a default roster');
+  const accountA = JSON.parse(original);
   accountA[0].name = 'Hesap A';
   storage.set('class-race-v1:teacher-account-a', JSON.stringify(accountA));
   ctx.window.listeners['firebase-account-scope']({ detail: { scope: 'teacher-account-b' } });
@@ -456,7 +492,7 @@ test('student roster names are saved and reflected on the race screen', () => {
 });
 
 test('storage events refresh student view when another tab updates stars', () => {
-  const { get, storage, ctx } = makeApp('');
+  const { get, storage, ctx } = makeApp('', studentsOf(makeApp().storage));
   const data = studentsOf(storage);
   data[0].stars = 3;
   storage.set('class-race-v1', JSON.stringify(data));
@@ -474,6 +510,17 @@ test('responsive CSS and essential dialog controls are present', () => {
   assert.match(html, /\(i\+1\)\+'\.'/);
   assert.match(html, /class="place-block"/);
   assert.match(html, /minecraftMode\?/);
+});
+
+test('Minecraft course endpoints keep the player and portal inside narrow viewports', () => {
+  assert.match(html, /@media\(max-width:900px\)\{body\.minecraft-mode \.student-card \.runner-token\{left:clamp\(44px,var\(--runner-x\),calc\(100% - 44px\)\)!important\}body\.minecraft-mode \.student-card \.finish-line\{left:clamp\(32px,var\(--track-end\),calc\(100% - 32px\)\)!important\}\}/);
+  for (const worldWidth of [320, 350, 390, 660, 1260, 1800]) {
+    const playerCenter = Math.max(44, Math.min(worldWidth * 0.05, worldWidth - 44));
+    const portalCenter = Math.max(32, Math.min(worldWidth * 0.95, worldWidth - 32));
+    assert.ok(playerCenter - 40 >= 0 && playerCenter + 40 <= worldWidth, `player fits in ${worldWidth}px world`);
+    assert.ok(portalCenter - 32 >= 0 && portalCenter + 32 <= worldWidth, `portal fits in ${worldWidth}px world`);
+  }
+  assert.match(html, /@media\(max-width:420px\)\{body\.minecraft-mode \.control-row\{grid-template-columns:40px minmax\(40px,1fr\) auto repeat\(3,38px\);gap:4px\}body\.minecraft-mode \.mini-btn\{width:38px;height:38px\}\}/);
 });
 
 test('star updates animate runners on this tab and on storage synchronization', () => {
@@ -540,7 +587,7 @@ test('student hears a sound for each progress update', () => {
 });
 
 test('student storage refresh does not echo the roster back into other tabs', () => {
-  const app = makeApp(''); const { storage, ctx } = app; const before = app.writes;  
+  const app = makeApp('', studentsOf(makeApp().storage)); const { storage, ctx } = app; const before = app.writes;
   const data = studentsOf(storage); data[0].stars = 2; storage.set('class-race-v1', JSON.stringify(data));
   ctx.window.listeners.storage({ key: 'class-race-v1' });
   
@@ -643,11 +690,11 @@ test('Firebase config and rules isolate private teacher accounts and expose only
   assert.match(config, /databaseURL:\s*"https:\/\/yildizyarislari-default-rtdb\.europe-west1\.firebasedatabase\.app"/);
   assert.equal(rules.rules['.read'], false, 'root listing and reads are denied');
   assert.equal(rules.rules['.write'], false, 'root writes are denied');
-  assert.equal(rules.rules.teacherData['$uid']['.read'], 'auth != null && auth.uid === $uid');
-  assert.equal(rules.rules.teacherData['$uid']['.write'], 'auth != null && auth.uid === $uid');
-  assert.equal(rules.rules.sharedRosters['$token']['.read'], 'auth != null');
+  assert.equal(rules.rules.teacherData['$uid']['.read'], 'auth != null && auth.uid === $uid && auth.token.email != null');
+  assert.equal(rules.rules.teacherData['$uid']['.write'], 'auth != null && auth.uid === $uid && auth.token.email != null');
+  assert.match(rules.rules.sharedRosters['$token']['.read'], /studentSessions.*studentCredentials/);
   assert.match(rules.rules.sharedRosters['$token']['.write'], /auth\.uid === newData\.child\('ownerUid'\)\.val\(\)/);
-  assert.equal(rules.rules['class-race'].defaultRosterToken['.read'], 'auth != null');
+  assert.equal(rules.rules['class-race'].defaultRosterToken['.read'], false);
   assert.equal(rules.rules['class-race'].students['.read'], "auth != null && auth.token.email === 'tunc@test.com'");
   assert.match(firebase, /signInAnonymously/);
   assert.match(firebase, /signInWithEmailAndPassword/);
@@ -655,13 +702,13 @@ test('Firebase config and rules isolate private teacher accounts and expose only
   assert.match(firebase, /const teacherCollection = testMode \? "testTeacherData" : "teacherData"/);
   assert.match(firebase, /\$\{teacherCollection\}\/\$\{teacherUid\}/);
   assert.match(firebase, /sharedRosters\/\$\{token\}/);
-  assert.match(firebase, /if \(Object\.hasOwn\(data, "students"\)\) sharedUpdate\.students = data\.students/);
-  assert.match(firebase, /if \(Object\.hasOwn\(data, "ways"\)\) sharedUpdate\.ways = data\.ways/);
+  assert.match(firebase, /classPath/);
+  assert.match(firebase, /Object\.hasOwn\(data,"ways"\)/);
   assert.match(firebase, /setPersistence\(auth, browserLocalPersistence\)/);
   assert.match(firebase, /studentQuestionData\/\$\{activeStudentRoster\}\/\$\{activeStudentId\}/);
   assert.match(html, /await window\.raceCloud\.saveQuestionProgress\(String\(studentId\),progress\)/);
   assert.ok(rules.rules.studentQuestionData, 'question progress has an account-scoped database path');
-  assert.equal(rules.rules.studentCredentials.$token['.read'], "auth != null && root.child('teacherData').child(auth.uid).child('shareToken').val() === $token");
+  assert.match(rules.rules.studentCredentials.$token['.read'], /classTokens/); assert.match(rules.rules.studentCredentials.$token['.read'], /data\.child\('ownerUid'\)\.val\(\) === auth\.uid/);
   assert.match(rules.rules.studentSessions.$token.$uid['.write'], /studentCredentials.*codes/);
   assert.match(rules.rules.studentQuestionData.$token.$studentId['.read'], /studentSessions/);
   assert.match(rules.rules.studentQuestionData.$token.$studentId['.write'], /child\('studentId'\)\.val\(\) === \$studentId/);
@@ -691,9 +738,9 @@ test('Minecraft teacher test mode has its own Firebase data and install identity
   const teacherManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest-teacher.webmanifest'), 'utf8'));
   assert.match(html, /document\.body\.classList\.add\('minecraft-mode'\);applyMinecraftCopy/);
   assert.match(firebase, /testTeacherData/);
-  assert.match(firebase, /if \(testMode\) \{\s*await Promise\.all\(updates\);\s*return;/);
-  assert.equal(rules.rules.testTeacherData['$uid']['.read'], 'auth != null && auth.uid === $uid');
-  assert.equal(rules.rules.testTeacherData['$uid']['.write'], 'auth != null && auth.uid === $uid');
+  assert.match(firebase, /testMode \? "testTeacherData" : "teacherData"/);
+  assert.equal(rules.rules.testTeacherData['$uid']['.read'], 'auth != null && auth.uid === $uid && auth.token.email != null');
+  assert.equal(rules.rules.testTeacherData['$uid']['.write'], 'auth != null && auth.uid === $uid && auth.token.email != null');
   assert.equal(new Set([manifest.id, studentManifest.id, teacherManifest.id]).size, 3, 'the test install ID does not overlap the production apps');
   assert.equal(manifest.start_url, './?teacher=1&test=1');
   assert.equal(manifest.theme_color, '#446d52');
