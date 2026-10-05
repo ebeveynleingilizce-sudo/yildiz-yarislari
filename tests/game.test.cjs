@@ -120,7 +120,7 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(html, /student-card \.game-world\{[^}]*position:relative/);
   assert.match(html, /student-card \.runner-token\{top:auto/);
   assert.match(app.get('lanes').innerHTML, /mc-world-ground/);
-  assert.match(app.get('lanes').innerHTML, /mc-checkpoint-chest/);
+  assert.doesNotMatch(app.get('lanes').innerHTML, /mc-checkpoint-chest|mc-fence/);
   assert.match(app.get('lanes').innerHTML, /aria-label=\"Nether portalı hedefi\"/);
   assert.doesNotMatch(app.get('lanes').innerHTML, /mc-path-step/);
   assert.match(app.get('lanes').innerHTML, /mc-world-road/);
@@ -135,14 +135,14 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(html, /--runner-from/);
   assert.match(html, /segment<raceStars\(s\)\?' filled':''/);
   assert.match(html, /width:80px;height:80px/);
-  assert.match(app.get('lanes').innerHTML, /20 XP checkpoint sandığı/);
+  assert.doesNotMatch(app.get('lanes').innerHTML, /20 XP checkpoint sandığı/);
   assert.match(app.get('lanes').innerHTML, /style=\"left:5\.00%\"/);
   assert.match(app.get('lanes').innerHTML, /class="mc-xp-bar" role="progressbar"/);
   assert.match(app.get('lanes').innerHTML, /class="mc-hearts">(?:<span class="mc-heart"><\/span>){10}<\/div>/);
   assert.match(app.get('lanes').innerHTML, /class="mc-hunger">(?:<span class="mc-hunger-icon"><\/span>){10}<\/div>/);
   assert.match(app.get('lanes').innerHTML, /class="mc-hud-level">0<\/span>/);
   assert.match(html, /mc-world-road\{[^}]*#806344/);
-  assert.equal((app.get('lanes').innerHTML.match(/class="mc-obsidian-block /g) || []).length, 40);
+  assert.equal((app.get('lanes').innerHTML.match(/class="mc-obsidian-block /g) || []).length, 0);
   assert.match(html, /mc-portal-inner:before/);
   assert.match(app.get('lanes').innerHTML, /aria-valuenow="0"/);
   assert.match(html, /body\.minecraft-mode \.mc-xp-bar\{position:absolute;left:0;right:0;bottom:2px/);
@@ -154,7 +154,7 @@ test('Minecraft test roster uses pixel sprites for lanes, picker, teacher contro
   assert.match(html, /body\.minecraft-mode \.finish-line\{top:auto;left:var\(--track-end\);right:auto/);
   assert.doesNotMatch(html.match(/body\.minecraft-mode \.mc-xp-bar\{([^}]+)\}/)?.[1] || '', /gradient|border-radius:[1-9]/);
   assert.match(app.get('lanes').innerHTML, /mc-milestone-label">10 XP/);
-  assert.match(app.get('lanes').innerHTML, /mc-milestone-label">20 XP/);
+  assert.doesNotMatch(app.get('lanes').innerHTML, /mc-milestone-label">20 XP/);
   assert.match(html, /body\.minecraft-mode \.mc-xp-bar\{position:absolute;left:0;right:0;bottom:2px/);
   assert.match(html, /mc-start:after\{display:none\}/);
   assert.match(html, /body\.minecraft-mode \.track\{grid-column:1\/\-/);
@@ -186,14 +186,13 @@ test('Minecraft stars drive XP segments, runner position, and portal course mile
     assert.equal((app.get('lanes').innerHTML.match(/class="mc-xp-segment/g) || []).length, 30);
     assert.match(app.get('lanes').innerHTML, /class="mc-start" style="left:5\.00%"/);
     assert.match(app.get('lanes').innerHTML, /class="mc-cabin [^"]*" style="left:35\.00%"/);
-    assert.match(app.get('lanes').innerHTML, /class="mc-checkpoint-chest [^"]*" style="left:65\.00%"/);
+    assert.doesNotMatch(app.get('lanes').innerHTML, /class="mc-checkpoint-chest/);
     assert.match(app.get('lanes').innerHTML, /class="finish-line" style="left:95\.00%"/);
     if (stars >= 10) assert.match(app.get('lanes').innerHTML, /mc-cabin mc-cabin-reached/);
     else assert.match(app.get('lanes').innerHTML, /mc-cabin "/);
-    if (stars >= 20) assert.match(app.get('lanes').innerHTML, /mc-checkpoint-chest mc-chest-open/);
-    else assert.match(app.get('lanes').innerHTML, /mc-checkpoint-chest "/);
+    assert.doesNotMatch(app.get('lanes').innerHTML, /mc-checkpoint-chest/);
     if (stars === 30) {
-      assert.match(app.get('lanes').innerHTML, /20 XP ödül sandığı/);
+      assert.doesNotMatch(app.get('lanes').innerHTML, /20 XP ödül sandığı/);
       assert.match(app.get('lanes').innerHTML, /PORTAL AÇIK/);
       assert.match(app.get('lanes').innerHTML, /mc-portal-active/);
       assert.match(app.get('lanes').innerHTML, /mc-portal-active/);
@@ -395,7 +394,7 @@ test('Sosyal Bilgiler is selectable and its sample topic starts a test', () => {
   assert.match(html, /<option>Sosyal Bilgiler<\/option>/);
   assert.match(html, /<script src="\.\/questions\.js\?v=21"><\/script>/);
   assert.match(html, /\[hidden\]\{display:none!important\}/);
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v34'/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v35'/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8'), /cp .*questions\.js .*_site\//);
   const { ctx, get } = makeApp('?teacher=1&test=1');
   ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
