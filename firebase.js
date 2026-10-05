@@ -204,9 +204,11 @@ function emitClasses() {
   window.dispatchEvent(new CustomEvent("firebase-classes", { detail: { classes: Object.values(teacherClasses), activeClassId, teacherId: teacherUid } }));
 }
 async function syncStudentCodeLookup(updates, token, roster, codes) {
-  const path = "studentCredentials/" + token + "/codes";
+  const path = accountPath();
   const snapshot = await firebaseRequest("read", path, () => get(ref(db, path)));
-  const previous = snapshot.val() || {};
+  const account = snapshot.val() || {};
+  const existingClass = Object.values(account.classes || {}).find(cls => cls.shareToken === token);
+  const previous = existingClass ? (account.classData?.[existingClass.classId]?.studentAccessCodes || {}) : {};
   const nextByCode = new Map();
   for (const student of Array.isArray(roster) ? roster : []) {
     const id = String(student?.id ?? ""), code = String(codes?.[id] || "");

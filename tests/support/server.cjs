@@ -24,7 +24,7 @@ http.createServer((request, response) => {
     const compile = value => value && typeof value === 'object'
       ? '{' + Object.entries(value).map(([key, item]) => JSON.stringify(key) + ':' +
         (['.read', '.write'].includes(key) && typeof item === 'string'
-          ? '({auth,root,data,newData,$token,$uid,$studentId})=>(' + item + ')'
+          ? '({auth,root,data,newData,$token,$uid,$studentId,$code})=>(' + item + ')'
           : compile(item))).join(',') + '}' : JSON.stringify(value);
     response.end(fs.readFileSync(path.join(__dirname, 'firebase-mock.js'), 'utf8') + '\nwindow.__firebaseSdk = createFirebaseSdk(window, ' + compile(rules) + ');');
     return;

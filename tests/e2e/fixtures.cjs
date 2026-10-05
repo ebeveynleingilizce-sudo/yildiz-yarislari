@@ -43,7 +43,7 @@ async function connectStudent(page, account = 'a', id = '1') {
   await page.goto('/');
   await page.waitForFunction(() => window.__testCloud?.ready);
   const code = account === 'a' ? (id === '1' ? 'TESTCODE' : 'OTHERCODE') : (id === '1' ? 'BCODEONE' : 'BCODETWO');
-  await page.locator('#studentAccessCode').fill(`${account.repeat(32)}:${id}:${code}`);
+  await page.locator('#studentAccessCode').fill(code);
   await page.locator('#studentAccessSubmit').click();
   await expect(page.locator('#studentAccessOverlay')).not.toHaveClass(/open/);
   await expect(page.locator('#raceApp')).toBeVisible();
