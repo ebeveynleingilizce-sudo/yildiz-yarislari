@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yildiz-yarislari-v32';
+const CACHE_NAME = 'yildiz-yarislari-v33';
 const BASE_PATH = new URL('./', self.location.href).pathname;
 const APP_FILES = [
   BASE_PATH,
