@@ -394,7 +394,7 @@ test('Sosyal Bilgiler is selectable and its sample topic starts a test', () => {
   assert.match(html, /<option>Sosyal Bilgiler<\/option>/);
   assert.match(html, /<script src="\.\/questions\.js\?v=21"><\/script>/);
   assert.match(html, /\[hidden\]\{display:none!important\}/);
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v35'/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /CACHE_NAME = 'yildiz-yarislari-v36'/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8'), /cp .*questions\.js .*_site\//);
   const { ctx, get } = makeApp('?teacher=1&test=1');
   ctx.window.LOCAL_QUESTION_BANK = Array.from({ length: 20 }, (_, i) => ({
@@ -748,4 +748,15 @@ test('Minecraft teacher test mode has its own Firebase data and install identity
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'pwa.js'), 'utf8'), /manifest-teacher-test\.webmanifest/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /manifest-teacher-test\.webmanifest/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'service-worker.js'), 'utf8'), /questions\.js/);
+});
+
+test('reference Nether portal uses a local obsidian and swirl asset, active only at 30 XP', () => {
+  const asset = fs.readFileSync(path.join(__dirname, '..', 'nether-portal.svg'), 'utf8');
+  assert.match(asset, /id="obsidian"/);
+  assert.match(asset, /id="nether-swirl"/);
+  assert.match(html, /nether-portal\.svg/);
+  for (const stars of [29, 30]) {
+    const app = makeApp('?teacher=1', [{ id: 1, name: 'Portal Test', emoji: 'mc-steve', stars, xp: stars, lifetimeStars: stars }]);
+    assert.equal(app.get('lanes').innerHTML.includes('mc-portal-active'), stars === 30);
+  }
 });
