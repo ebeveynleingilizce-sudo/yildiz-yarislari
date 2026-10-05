@@ -507,6 +507,13 @@ window.raceCloud = {
     await connectStudentRoster(token, true);
     return true;
   },
+  getStudentAccessUrl(studentId) {
+    if (!isTeacher || testMode || !shareToken || !/^\\d+$/.test(String(studentId))) return "";
+    const url = new URL(location.href);
+    url.search = "?roster=" + encodeURIComponent(shareToken) + "&student=" + encodeURIComponent(String(studentId));
+    url.hash = "";
+    return url.href;
+  },
   getStudentConnectionCode(studentId, code) {
     if (!isTeacher || testMode || !shareToken || studentAccessCodes[String(studentId)] !== code) return "";
     return `${shareToken}:${studentId}:${code}`;
