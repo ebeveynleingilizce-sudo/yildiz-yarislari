@@ -30,7 +30,7 @@ function createFirebaseSdk(env, rules) {
   }
   const auth = { currentUser: null }, listeners = new Set(), authListeners = new Set();
   let appName;
-  const state = env.__testCloud = { writes: [], failNextSave: false, failNextWrite: false, tokens,
+  const state = env.__testCloud = { writes: [], failNextSave: false, failNextWrite: false, transactionNullOnce: false, tokens,
     data: read, pending: [], ready: false };
   function permitted(operation, path, oldRoot, nextRoot = oldRoot) {
     const captures = {}, parts = path.split('/').filter(Boolean);
@@ -87,7 +87,7 @@ function createFirebaseSdk(env, rules) {
   return {
     initializeApp: (_, name) => { appName = name; return { name }; },
     getAuth: () => auth, getDatabase: () => ({}), ref: (_, path = '') => ({ path }),
-    runTransaction: async (reference,callback) => {const value=callback(at(read(),reference.path));if(value===undefined)return {committed:false,snapshot:snapshot(at(read(),reference.path))};await write(reference,value,true);return {committed:true,snapshot:snapshot(value)};},
+    runTransaction: async (reference,callback) => {const current=state.transactionNullOnce?(state.transactionNullOnce=false,null):at(read(),reference.path);const value=callback(current);if(value===undefined)return {committed:false,snapshot:snapshot(at(read(),reference.path))};await write(reference,value,true);return {committed:true,snapshot:snapshot(value)};},
     get: async reference => { const root = read(); if (!permitted('read', reference.path, root)) throw denied(); return snapshot(at(root, reference.path)); },
     set: (reference, value) => write(reference, value, true), update: (reference, value) => write(reference, value, false),
     onValue: (reference, callback, error) => { const listener = { path: reference.path, callback, error, last: undefined }; listeners.add(listener); notify(); return () => listeners.delete(listener); },
@@ -108,3 +108,4 @@ function createFirebaseSdk(env, rules) {
   };
 }
 if (typeof module !== 'undefined') module.exports = { createFirebaseSdk };
+
