@@ -7,10 +7,11 @@ function createFirebaseSdk(env, rules) {
   for (const account of ['a', 'b']) {
     const students = [1, 2].map(id => ({ id, name: account === 'a' ? `Test Öğrenci ${id === 1 ? 'A' : 'B'}` : `Öğretmen B Öğrenci ${id}`, emoji: id === 1 ? 'mc-steve' : 'mc-alex', stars: 0, xp: 0, lifetimeStars: 0 }));
     const codes = { 1: account === 'a' ? 'TESTCODE' : 'BCODEONE', 2: account === 'a' ? 'OTHERCODE' : 'BCODETWO' };
-    seed.teacherData ??= {}; seed.sharedRosters ??= {}; seed.studentCredentials ??= {};
+    seed.teacherData ??= {}; seed.sharedRosters ??= {}; seed.studentCredentials ??= {}; seed.studentCodeLookup ??= {};
     seed.teacherData[`teacher-${account}`] = { shareToken: tokens[account], students, studentAccessCodes: codes, ways: [], seasons: [], starHistory: [] };
     seed.sharedRosters[tokens[account]] = { ownerUid: `teacher-${account}`, students, ways: [] };
     seed.studentCredentials[tokens[account]] = { ownerUid: `teacher-${account}`, codes };
+    for (const [studentId, code] of Object.entries(codes)) seed.studentCodeLookup[code] = { ownerUid: `teacher-${account}`, rosterToken: tokens[account], studentId };
   }
   const storage = env.localStorage;
   const key = 'local-test-database';
@@ -20,6 +21,7 @@ function createFirebaseSdk(env, rules) {
   function snapshot(value) {
     return { val: () => value == null ? null : clone(value), exists: () => value != null,
       child: path => snapshot(at(value, path)), isString: () => typeof value === 'string',
+      matches: pattern => typeof value === 'string' && pattern.test(value),
       hasChildren: names => names.every(name => at(value, name) != null) };
   }
   function put(root, path, value) {
@@ -39,7 +41,7 @@ function createFirebaseSdk(env, rules) {
       const expression = node['.' + operation];
       if (expression === true) return true;
       if (typeof expression === 'string' || typeof expression === 'function') {
-        const user = auth.currentUser ? { ...auth.currentUser, token: { email: auth.currentUser.email } } : null;
+        const user = auth.currentUser ? { ...auth.currentUser, token: { email: auth.currentUser.email, firebase: { sign_in_provider: auth.currentUser.isAnonymous ? 'anonymous' : 'password' } } } : null;
         const args = ['auth', 'root', 'data', 'newData', ...Object.keys(captures)];
         const values = [user, snapshot(oldRoot), snapshot(at(oldRoot, traversed.join('/'))), snapshot(at(nextRoot, traversed.join('/'))), ...Object.values(captures)];
         const result = typeof expression === 'function'
