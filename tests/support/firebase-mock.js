@@ -87,6 +87,7 @@ function createFirebaseSdk(env, rules) {
   return {
     initializeApp: (_, name) => { appName = name; return { name }; },
     getAuth: () => auth, getDatabase: () => ({}), ref: (_, path = '') => ({ path }),
+    runTransaction: async (reference,callback) => {const value=callback(at(read(),reference.path));if(value===undefined)return {committed:false,snapshot:snapshot(at(read(),reference.path))};await write(reference,value,true);return {committed:true,snapshot:snapshot(value)};},
     get: async reference => { const root = read(); if (!permitted('read', reference.path, root)) throw denied(); return snapshot(at(root, reference.path)); },
     set: (reference, value) => write(reference, value, true), update: (reference, value) => write(reference, value, false),
     onValue: (reference, callback, error) => { const listener = { path: reference.path, callback, error, last: undefined }; listeners.add(listener); notify(); return () => listeners.delete(listener); },
@@ -99,8 +100,8 @@ function createFirebaseSdk(env, rules) {
     setPersistence: async () => {}, browserLocalPersistence: 'local', browserSessionPersistence: 'session',
     signInAnonymously: () => authenticate({ uid: 'anonymous-test', isAnonymous: true }),
     signInWithEmailAndPassword: async (_, email, password) => {
-      if (!/^teacher-[ab]@example\.invalid$/.test(email) || password !== 'test-only-password') throw denied();
-      await authenticate({ uid: email.split('@')[0], email, isAnonymous: false });
+      if (!/^teacher-[ab]@example\.invalid$/.test(email) && email !== 'tunc@test.com' || password !== 'test-only-password') throw denied();
+      await authenticate({ uid: email === 'tunc@test.com' ? 'teacher-a' : email.split('@')[0], email, isAnonymous: false });
     },
     signOut: () => authenticate(null), GoogleAuthProvider: class {},
     signInWithPopup: async () => { throw denied(); }, createUserWithEmailAndPassword: async () => { throw denied(); },

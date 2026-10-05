@@ -28,4 +28,33 @@ async function loginTeacher(page, account = 'a') {
   await page.locator('#settingsBtn').click();
   await expect(page.locator('#controls')).toHaveClass(/open/);
 }
-module.exports = { test, expect, loginTeacher };
+// Integration setup for two-tab tests. Login UI is covered by app.spec.cjs.
+async function openTeacherSession(page, account = 'a') {
+  await page.bringToFront();
+  await page.goto('/?teacher=1');
+  await page.waitForFunction(() => window.__testCloud?.ready);
+  await page.evaluate(account => window.raceCloud.login(`teacher-${account}@example.invalid`, 'test-only-password'), account);
+  await expect(page.locator('#firebaseLoginOverlay')).not.toHaveClass(/open/);
+  await page.locator('#settingsBtn').click();
+  await expect(page.locator('#controls')).toHaveClass(/open/);
+}
+async function connectStudent(page, account = 'a', id = '1') {
+  await page.bringToFront();
+  await page.goto('/');
+  await page.waitForFunction(() => window.__testCloud?.ready);
+  const code = account === 'a' ? (id === '1' ? 'TESTCODE' : 'OTHERCODE') : (id === '1' ? 'BCODEONE' : 'BCODETWO');
+  await page.locator('#studentAccessCode').fill(`${account.repeat(32)}:${id}:${code}`);
+  await page.locator('#studentAccessSubmit').click();
+  await expect(page.locator('#studentAccessOverlay')).not.toHaveClass(/open/);
+  await expect(page.locator('#raceApp')).toBeVisible();
+}
+async function studentQuestion(page) {
+  await connectStudent(page);
+  await page.locator('#questionBankOpen').click();
+  await expect(page.locator('#questionBankOverlay')).toHaveClass(/open/);
+  await page.locator('#qbLesson').selectOption({ label: 'Matematik' });
+  const topic = await page.locator('#qbTopic option').nth(1).getAttribute('value');
+  await page.locator('#qbTopic').selectOption(topic);
+  await page.locator('#qbStart').click();
+}
+module.exports = { test, expect, loginTeacher, openTeacherSession, connectStudent, studentQuestion };
