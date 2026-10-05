@@ -465,6 +465,23 @@ body.minecraft-mode .race-card{padding-top:0}
 body.minecraft-mode .track-head{margin:0 2px 12px;padding-top:0;padding-bottom:0}
 body.minecraft-mode .footer-note{margin:0}
 @media(max-width:900px){body.minecraft-mode .student-card .runner-token{left:clamp(44px,var(--runner-x),calc(100% - 44px))!important}body.minecraft-mode .student-card .finish-line{left:clamp(32px,var(--track-end),calc(100% - 32px))!important}}@media(max-width:420px){body.minecraft-mode .control-row{grid-template-columns:40px minmax(40px,1fr) auto repeat(3,38px);gap:4px}body.minecraft-mode .mini-btn{width:38px;height:38px}} .class-management{display:grid;gap:8px;margin-bottom:14px}.class-management select{width:100%;padding:8px;font:inherit}.class-dialog label{display:block;margin:12px 0}.class-dialog input,.class-dialog select{display:block;width:100%;padding:9px;font:inherit}.class-dialog input{box-sizing:border-box}#activeClassBadge{max-width:160px;overflow:hidden;text-overflow:ellipsis}
+/* Keep teacher connection details readable at every panel width. */
+.student-code-row{box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;padding:4px 8px 8px}
+.student-code-row>span{box-sizing:border-box;flex:1 1 100%;width:100%;min-width:0;white-space:normal;overflow-wrap:normal;word-break:normal;line-height:1.5}
+.student-code-row .student-full-connection-code{overflow-wrap:anywhere;word-break:normal}
+.student-code-row>button{flex:0 1 auto;min-width:0;white-space:normal}
+@media(max-width:650px){
+ body.minecraft-mode .control-row{grid-template-columns:40px minmax(0,1fr) repeat(3,38px);gap:5px}
+ body.minecraft-mode .control-row>.control-emoji{grid-area:1/1}
+ body.minecraft-mode .control-row>.control-name{grid-area:1/2/2/4;min-width:0}
+ body.minecraft-mode .control-row>.control-name input{min-width:0}
+ body.minecraft-mode .control-row>.control-score{grid-area:1/4/2/6;justify-self:end}
+ body.minecraft-mode .control-row>.mini-btn[data-add]{grid-area:2/3}
+ body.minecraft-mode .control-row>.mini-btn[data-sub]{grid-area:2/4}
+ body.minecraft-mode .control-row>.mini-btn.remove-student{grid-area:2/5}
+ body.minecraft-mode .control-row>.mini-btn{width:38px;height:36px;justify-self:end}
+ body.minecraft-mode .student-code-row{gap:6px}
+}
 </style></head>
 <body><main class="app" id="raceApp" hidden><header class="topbar"><div class="brand"><div class="brand-icon" aria-hidden="true"><svg class="logo-art" viewBox="0 0 64 64"><defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#20266b"/><stop offset="1" stop-color="#100f3c"/></linearGradient><linearGradient id="gold" x2="0" y2="1"><stop stop-color="#fff1a0"/><stop offset="1" stop-color="#ffb832"/></linearGradient></defs><rect x="1.5" y="1.5" width="61" height="61" rx="19" fill="url(#bg)" stroke="#8e70ed" stroke-width="2.5"/><path d="M8 51 51 24M8 57 54 28" stroke="#f5c75d" stroke-width="2.2" stroke-linecap="round"/><path d="M10 45 22 37M15 54 27 47" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/><path d="m31 12 5.2 10.6 11.7 1.7-8.5 8.3 2 11.6L31 38.7l-10.4 5.5 2-11.6-8.5-8.3 11.7-1.7z" fill="url(#gold)" stroke="#fff4c4" stroke-width="1.2" stroke-linejoin="round"/><g transform="translate(43 11) rotate(19 7 4)"><rect width="15" height="8" rx="1.5" fill="#fff"/><path d="M0 0h3.75v4H0zm7.5 0h3.75v4H7.5zM3.75 4H7.5v4H3.75zm7.5 0H15v4h-3.75z" fill="#22234f"/></g></svg></div><strong id="brandName">YILDIZ <span>YARIŞLARI</span></strong></div><div class="top-actions"><button class="question-bank-launch" id="questionBankOpen" type="button" style="display:none">SORU BANKASI</button><button class="student-switch" id="studentSwitch" type="button" hidden>OYUNCU GİRİŞİ</button><button class="icon-btn install-btn" id="installBtn" hidden title="Ana ekrana ekle" aria-label="Uygulamayı ana ekrana ekle">📲</button><button class="icon-btn" id="soundBtn" title="Sesi aç/kapat" aria-label="Sesi aç/kapat">🔊</button><button class="icon-btn" id="settingsBtn" title="Öğretmen paneli" aria-label="Öğretmen panelini aç">⚙️</button></div></header>
 <section class="hero"><div><h1 id="heroTitle">YILDIZ SIRALAMASI <span>🏆</span></h1><p id="heroTagline">YILDIZLARI TOPLA, LİDERLİĞİ KAP</p></div><div class="race-meta"><span class="live-dot"></span><span id="studentCount">10 ÖĞRENCİ</span><span>·</span><span id="finishTarget">🏁 30 YILDIZ HEDEFİ</span></div></section>
