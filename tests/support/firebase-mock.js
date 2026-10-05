@@ -7,11 +7,10 @@ function createFirebaseSdk(env, rules) {
   for (const account of ['a', 'b']) {
     const students = [1, 2].map(id => ({ id, name: account === 'a' ? `Test Öğrenci ${id === 1 ? 'A' : 'B'}` : `Öğretmen B Öğrenci ${id}`, emoji: id === 1 ? 'mc-steve' : 'mc-alex', stars: 0, xp: 0, lifetimeStars: 0 }));
     const codes = { 1: account === 'a' ? 'TESTCODE' : 'BCODEONE', 2: account === 'a' ? 'OTHERCODE' : 'BCODETWO' };
-    seed.teacherData ??= {}; seed.sharedRosters ??= {}; seed.studentCredentials ??= {}; seed.studentCodeLookup ??= {};
+    seed.teacherData ??= {}; seed.sharedRosters ??= {}; seed.studentCredentials ??= {};
     seed.teacherData[`teacher-${account}`] = { shareToken: tokens[account], students, studentAccessCodes: codes, ways: [], seasons: [], starHistory: [] };
     seed.sharedRosters[tokens[account]] = { ownerUid: `teacher-${account}`, students, ways: [] };
     seed.studentCredentials[tokens[account]] = { ownerUid: `teacher-${account}`, codes };
-    for (const [studentId, code] of Object.entries(codes)) seed.studentCodeLookup[code] = { ownerUid: `teacher-${account}`, rosterToken: tokens[account], studentId };
   }
   const storage = env.localStorage;
   const key = 'local-test-database';
