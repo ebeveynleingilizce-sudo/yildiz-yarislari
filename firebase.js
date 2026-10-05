@@ -508,7 +508,7 @@ window.raceCloud = {
     return true;
   },
   getStudentAccessUrl(studentId) {
-    if (!isTeacher || testMode || !shareToken || !/^\\d+$/.test(String(studentId))) return "";
+    if (!isTeacher || testMode || !shareToken || !/^\d+$/.test(String(studentId))) return "";
     const url = new URL(location.href);
     url.search = "?roster=" + encodeURIComponent(shareToken) + "&student=" + encodeURIComponent(String(studentId));
     url.hash = "";
