@@ -1,7 +1,7 @@
 const { test, expect, loginTeacher, openTeacherSession, connectStudent } = require('./fixtures.cjs');
 
-test('new student and a class link alone show only the connection screen', async ({ page }) => {
-  for (const url of ['/', `/?roster=${'a'.repeat(32)}`]) {
+test('the default student page needs only the short-code entry', async ({ page }) => {
+  for (const url of ['/']) {
     await page.goto(url);
     await page.waitForFunction(() => window.__testCloud?.ready);
     await expect(page.locator('#studentAccessTitle')).toHaveText('Öğretmenine Bağlan');
@@ -27,7 +27,7 @@ test('connection selects teacher A, blocks teacher B at database paths, and surv
   await expect(page.locator('#lanes')).not.toContainText('Öğretmen B');
   const denied = await page.evaluate(async () => {
     const sdk = window.__firebaseSdk;
-    const paths = ['teacherData/teacher-b', `sharedRosters/${'b'.repeat(32)}`, `studentQuestionData/${'b'.repeat(32)}/1`];
+    const paths = ['teacherData/teacher-b', 'sharedRosters/BCODEONE', 'studentQuestionData/BCODEONE/1'];
     return Promise.all(paths.map(async path => {
       try { await sdk.get(sdk.ref(null, path)); return 'ALLOWED'; } catch (error) { return error.code; }
     }));
@@ -92,13 +92,13 @@ test('removing a connected student revokes live access, old code, and refreshed 
   await expect(page.locator('.student-card')).toHaveCount(0);
   const forbiddenWrite = await page.evaluate(async () => {
     const sdk = window.__firebaseSdk;
-    try { await sdk.set(sdk.ref(null, `studentQuestionData/${'a'.repeat(32)}/1`), { xpEarned: 999 }); return 'ALLOWED'; }
+    try { await sdk.set(sdk.ref(null, 'studentQuestionData/TESTCODE/1'), { xpEarned: 999 }); return 'ALLOWED'; }
     catch (error) { return error.code; }
   });
   expect(forbiddenWrite).toBe('PERMISSION_DENIED');
-  await page.locator('#studentAccessCode').fill(`${'a'.repeat(32)}:1:TESTCODE`);
+  await page.locator('#studentAccessCode').fill('TESTCODE');
   await page.locator('#studentAccessSubmit').click();
-  await expect(page.locator('#studentAccessMessage')).toContainText('Erişim reddedildi');
+  await expect(page.locator('#studentAccessMessage')).toContainText('Kod bulunamadı');
   await page.reload();
   await page.waitForFunction(() => window.__testCloud?.ready);
   await expect(page.locator('#raceApp')).toBeHidden();
@@ -117,7 +117,7 @@ test('rotating a student code revokes a connected session', async ({ page, conte
   await teacher.close();
 });
 
-test('teacher exposes short codes without student links', async ({ page }) => {
+test('teacher exposes only short codes and no special student links', async ({ page }) => {
   await loginTeacher(page);
   await page.evaluate(() => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { window.__copiedCode = text; } } });
