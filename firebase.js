@@ -13,7 +13,6 @@ const app = initializeApp(firebaseConfig, teacherMode ? (testMode ? "yildiz-teac
 const auth = getAuth(app);
 const db = getDatabase(app);
 const params = new URLSearchParams(location.search);
-const requestedRoster = params.get("roster");
 const primaryTeacherEmail = "tunc@test.com";
 let isTeacher = false;
 let teacherUid = null;
@@ -160,14 +159,6 @@ function publishStudentCodes() {
   window.dispatchEvent(new CustomEvent("firebase-student-codes", { detail: studentAccessCodes }));
 }
 
-async function publishStudentCredentials() {
-  if (!isTeacher || testMode || !teacherUid || !shareToken) return;
-  const path = "studentCredentials/" + shareToken;
-  const updates = { [path]: { ownerUid: teacherUid, teacherId:teacherUid, classId:activeClassId, codes: studentAccessCodes } };
-  const rosterSnapshot = await firebaseRequest("read", classPath(), () => get(ref(db, classPath())));
-  await syncStudentCodeLookup(updates, shareToken, rosterSnapshot.val()?.students || [], studentAccessCodes);
-  await firebaseRequest("write", path, () => update(ref(db), updates));
-}
 
 function activateStudentIdentity(studentId) {
   activeStudentId = String(studentId);
@@ -189,55 +180,100 @@ function setLocalScope(scope) {
   queueMicrotask(() => { suppressRosterSave = false; });
 }
 
-function showShareLink(token) {
-  if (testMode) return;
-  const url = new URL(location.href);
-  url.search = `?roster=${encodeURIComponent(token)}`;
-  url.hash = "";
-  window.dispatchEvent(new CustomEvent("firebase-share-link", { detail: { url: url.href } }));
-}
-
-
 function accountPath() { return `${testMode ? "testTeacherData" : "teacherData"}/${teacherUid}`; }
 function classPath(id = activeClassId) { if (!id || !teacherClasses[id]) throw new Error("Önce sınıf seç."); return `${accountPath()}/classData/${id}`; }
 function emitClasses() {
   window.dispatchEvent(new CustomEvent("firebase-classes", { detail: { classes: Object.values(teacherClasses), activeClassId, teacherId: teacherUid } }));
 }
-async function syncStudentCodeLookup(updates, token, roster, codes) {
-  const path = accountPath();
-  const snapshot = await firebaseRequest("read", path, () => get(ref(db, path)));
-  const account = snapshot.val() || {};
-  const existingClass = Object.values(account.classes || {}).find(cls => cls.shareToken === token);
-  const previous = existingClass ? (account.classData?.[existingClass.classId]?.studentAccessCodes || {}) : {};
-  const nextByCode = new Map();
-  for (const student of Array.isArray(roster) ? roster : []) {
-    const id = String(student?.id ?? ""), code = String(codes?.[id] || "");
-    if (!id || !/^[A-Z2-9]{8}$/.test(code)) continue;
-    if (nextByCode.has(code) && nextByCode.get(code) !== id) throw new Error("STUDENT_CODE_COLLISION");
-    nextByCode.set(code, id);
-  }
-  for (const oldCode of Object.values(previous)) {
-    if (typeof oldCode === "string" && !nextByCode.has(oldCode)) updates["studentCodeLookup/" + oldCode] = null;
-  }
-  for (const [code, id] of nextByCode) {
-    updates["studentCodeLookup/" + code] = { ownerUid: teacherUid, rosterToken: token, studentId: id };
-  }
-}
+function isValidStudentCode(code) { return /^[A-Z2-9]{8}$/.test(String(code || "")); }
 
 async function saveClassRoster(id, roster, codes, extra = {}) {
   const cls = teacherClasses[id];
   if (!cls) throw new Error("Sınıf bulunamadı.");
-  const students = roster.map(s => ({...s, teacherId: teacherUid, classId:id}));
-  const path = classPath(id), updates = { [path + "/students"]: students, [path + "/studentAccessCodes"]: codes };
-  if (id === defaultClassId) { updates[accountPath()+"/students"] = students; updates[accountPath()+"/studentAccessCodes"] = codes; }
+  const path = classPath(id), students = roster.map(student => ({ ...student, teacherId: teacherUid, classId: id }));
+  const previousRecord = (await firebaseRequest("read", path, () => get(ref(db, path)))).val() || {};
+  const markerPath = accountPath() + "/studentCodeTokens/" + id;
+  const marker = testMode ? {} : ((await firebaseRequest("read", markerPath, () => get(ref(db, markerPath)))).val() || {});
+  const previousCodes = { ...(previousRecord.studentAccessCodes || {}), ...Object.fromEntries(Object.entries(marker).map(([code, studentId]) => [String(studentId), code])) };
+  const finalCodes = { ...codes }, reserved = new Set(), seen = new Set(), nextMarker = {};
   if (!testMode) {
-    updates["sharedRosters/"+cls.shareToken] = { ownerUid:teacherUid, teacherId:teacherUid, classId:id, className:cls.name, students, ways:extra.ways || [] };
-    updates["studentCredentials/"+cls.shareToken] = { ownerUid:teacherUid, teacherId:teacherUid, classId:id, codes };
+    const classData = (await firebaseRequest("read", accountPath() + "/classData", () => get(ref(db, accountPath() + "/classData")))).val() || {};
+    for (const [classId, data] of Object.entries(classData)) if (classId !== id)
+      for (const code of Object.values(data?.studentAccessCodes || {})) if (isValidStudentCode(code)) reserved.add(code);
+    const claims = (await firebaseRequest("read", accountPath() + "/classTokens", () => get(ref(db, accountPath() + "/classTokens")))).val() || {};
+    const activeCodes = new Set(Object.values(finalCodes).map(value => String(value || "").trim().toUpperCase()).filter(isValidStudentCode));
+    for (const [code, classId] of Object.entries(claims)) if (isValidStudentCode(code) && (classId !== id || !activeCodes.has(code))) reserved.add(code);
   }
-  if (!testMode) await syncStudentCodeLookup(updates, cls.shareToken, students, codes);
-  Object.assign(updates, extra.updates || {});
-  await firebaseRequest("write",path,()=>update(ref(db),updates));
+  for (const student of students) {
+    const studentId = String(student.id);
+    let code = String(finalCodes[studentId] || "").trim().toUpperCase();
+    if (!isValidStudentCode(code) || seen.has(code) || reserved.has(code)) code = createStudentCode();
+    let tries = 0;
+    while (seen.has(code) || reserved.has(code)) {
+      code = createStudentCode();
+      if (++tries > 40) throw new Error("Öğrenci kodu oluşturulamadı. Yeniden dene.");
+    }
+    seen.add(code);
+    if (!testMode) {
+      let published = false;
+      for (let attempt = 0; attempt < 6 && !published; attempt++) {
+        await firebaseRequest("write", accountPath() + "/classTokens/" + code, () => set(ref(db, accountPath() + "/classTokens/" + code), id));
+        const singleStudent = { ...student, id: "1" };
+        const singleRoster = { ownerUid: teacherUid, teacherId: teacherUid, classId: id, className: cls.name,
+          students: [singleStudent], ways: extra.ways || previousRecord.ways || defaultWays };
+        try {
+          await firebaseRequest("write", "sharedRosters/" + code, () => update(ref(db), {
+            ["sharedRosters/" + code]: singleRoster,
+            ["studentCredentials/" + code]: { ownerUid: teacherUid, teacherId: teacherUid, classId: id, codes: { "1": code } }
+          }));
+          published = true;
+        } catch (error) {
+          await firebaseRequest("write", accountPath() + "/classTokens/" + code, () => set(ref(db, accountPath() + "/classTokens/" + code), null));
+          if (error.code !== "PERMISSION_DENIED" || attempt === 5) throw error;
+          code = createStudentCode();
+          while (seen.has(code) || reserved.has(code)) code = createStudentCode();
+          seen.add(code);
+        }
+      }
+      const oldCode = previousCodes[studentId];
+      const sources = oldCode && oldCode !== code ? [oldCode] : marker[code] ? [] : [cls.shareToken];
+      for (const sourceCode of sources) {
+        const oldPath = "studentQuestionData/" + sourceCode + "/" + (sourceCode === cls.shareToken ? studentId : "1");
+        const newPath = "studentQuestionData/" + code + "/1";
+        const newProgress = await get(ref(db, newPath));
+        if (!newProgress.exists()) {
+          try {
+            const oldProgress = await get(ref(db, oldPath));
+            if (oldProgress.exists()) await firebaseRequest("write", newPath, () => set(ref(db, newPath), oldProgress.val()));
+          } catch { /* Legacy question progress may already be inaccessible; roster data remains intact. */ }
+        }
+      }
+    }
+    finalCodes[studentId] = code;
+    nextMarker[code] = studentId;
+  }
+  const updates = { [path + "/students"]: students, [path + "/studentAccessCodes"]: finalCodes, ...(extra.updates || {}) };
+  if (id === defaultClassId) {
+    updates[accountPath() + "/students"] = students;
+    updates[accountPath() + "/studentAccessCodes"] = finalCodes;
+  }
+  if (!testMode) {
+    updates[markerPath] = nextMarker;
+    for (const oldCode of Object.keys(marker)) if (!nextMarker[oldCode]) {
+      // Retain a non-readable tombstone. This revokes sessions without deleting records.
+      updates["sharedRosters/" + oldCode] = { ownerUid: teacherUid, teacherId: teacherUid, classId: id, className: cls.name, students: [], ways: [] };
+      updates["studentCredentials/" + oldCode] = { ownerUid: teacherUid, teacherId: teacherUid, classId: id, codes: {} };
+    }
+    // Revoke the former class-wide connection by emptying its visible roster and
+    // credentials while keeping existing Firebase records intact.
+    updates["sharedRosters/" + cls.shareToken] = { ownerUid: teacherUid, teacherId: teacherUid, classId: id, className: cls.name, students: [], ways: [] };
+    updates["studentCredentials/" + cls.shareToken] = { ownerUid: teacherUid, teacherId: teacherUid, classId: id, codes: {} };
+  }
+  await firebaseRequest("write", path, () => update(ref(db), updates));
+  if (id === activeClassId) { studentAccessCodes = finalCodes; publishStudentCodes(); }
+  return finalCodes;
 }
+
 async function switchClass(id) {
   if (!isTeacher || !teacherClasses[id]) throw new Error("Sınıf bulunamadı.");
   await rosterWriteQueue.catch(()=>{});
@@ -257,14 +293,25 @@ async function switchClass(id) {
     publishWays(data.ways || defaultWays);
     starHistory=data.starHistory || []; seasons=data.seasons || [];
     window.dispatchEvent(new CustomEvent("firebase-seasons",{detail:seasons}));
-    showShareLink(shareToken);
+    if (!testMode) {
+      questionProgressSubscription?.();
+      const stops = [], progress = {};
+      const emit = () => { if (generation === classGeneration) window.dispatchEvent(new CustomEvent("firebase-question-progress", { detail: combineQuestionProgress(progress) })); };
+      for (const student of data.students || []) {
+        const studentId = String(student.id), code = data.studentAccessCodes?.[studentId];
+        if (!isValidStudentCode(code)) continue;
+        stops.push(onValue(ref(db, "studentQuestionData/" + code + "/1"), snapshot => {
+          if (generation !== classGeneration) return;
+          if (snapshot.exists()) progress[studentId] = snapshot.val(); else delete progress[studentId];
+          emit();
+        }, error => reportFirebaseError("listen", "studentQuestionData/" + code + "/1", error)));
+      }
+      questionProgressSubscription = () => stops.forEach(stop => stop());
+    }
   };
   const reference=ref(db,classPath(id));
   consume(await get(reference));
   privateSubscription=onValue(reference,consume,error=>showWriteFailure("Sınıf okunamadı",error));
-  if (!testMode) questionProgressSubscription=onValue(ref(db,"studentQuestionData/"+shareToken),snapshot=>{
-    if(generation===classGeneration) window.dispatchEvent(new CustomEvent("firebase-question-progress",{detail:combineQuestionProgress(snapshot.val())}));
-  },error=>reportFirebaseError("listen","studentQuestionData/"+shareToken,error));
 }
 async function migrateClasses(data, teacherRef) {
   if(data.classSchemaVersion===1&&data.classData&&data.classes)return data;
@@ -286,10 +333,8 @@ async function migrateClasses(data, teacherRef) {
 async function publishTeacherData(data) {
   const path=classPath();
   const updates={[path]:{...(await get(ref(db,path))).val(),...data}};
-  if(!testMode) {
-    const cls=teacherClasses[activeClassId];
-    if(Object.hasOwn(data,"ways")) updates["sharedRosters/"+cls.shareToken+"/ways"]=data.ways;
-  }
+  if(!testMode && Object.hasOwn(data,"ways"))
+    for (const code of Object.values(studentAccessCodes)) if (isValidStudentCode(code)) updates["sharedRosters/"+code+"/ways"]=data.ways;
   await update(ref(db),updates);
 }
 
@@ -341,14 +386,10 @@ async function initializeTeacher(user) {
   const needsMigration=data.classSchemaVersion!==1;
   data=await migrateClasses(data,teacherRef);
   teacherClasses=data.classes; defaultClassId=data.defaultClassId;
-  // Publish each class separately. Existing default codes and progress keep their token.
-  for (const cls of needsMigration ? Object.values(teacherClasses) : []) {
-    const record=data.classData[cls.classId];
-    if(brandNewAccount)await saveClassRoster(cls.classId,record.students||[],record.studentAccessCodes||{}, {ways:record.ways||defaultWays});
-    else if(!testMode)await update(ref(db),{
-      ["sharedRosters/"+cls.shareToken+"/teacherId"]:teacherUid,["sharedRosters/"+cls.shareToken+"/classId"]:cls.classId,["sharedRosters/"+cls.shareToken+"/className"]:cls.name,
-      ["studentCredentials/"+cls.shareToken+"/teacherId"]:teacherUid,["studentCredentials/"+cls.shareToken+"/classId"]:cls.classId
-    });
+  // Publish one private, code-keyed roster per student. No class-wide student list is public.
+  for (const cls of Object.values(teacherClasses)) {
+    const record = data.classData[cls.classId] || {};
+    await saveClassRoster(cls.classId, record.students || [], record.studentAccessCodes || {}, { ways: record.ways || defaultWays });
   }
   classListSubscription?.();
   classListSubscription=onValue(ref(db,accountPath()+"/classes"),snapshot=>{
@@ -360,9 +401,6 @@ async function initializeTeacher(user) {
   message("Öğretmen hesabıyla bağlandı.");
   // Make this account the default class only for the original owner. Other teachers
   // share their own unguessable link from the teacher panel.
-  if (!testMode && user.email?.toLowerCase() === primaryTeacherEmail) {
-    await set(ref(db, "class-race/defaultRosterToken"), shareToken);
-  }
 }
 
 function requireStudentConnection() {
@@ -381,55 +419,45 @@ async function connectStudentRoster(token, sessionConfirmed = false) {
   rosterSubscription?.(); rosterSubscription = null;
   questionProgressSubscription?.(); questionProgressSubscription = null;
   activeStudentId = null;
-  if (typeof token !== "string" || !/^[a-f0-9]{32,64}$/i.test(token)) {
-    throw new Error("Öğretmen bağlantı kodu geçersiz.");
-  }
-  const sharedRef = ref(db, `sharedRosters/${token}`);
-  const sessionPath = `studentSessions/${token}/${studentUid}`;
+  if (!isValidStudentCode(token)) throw new Error("STUDENT_CODE_INVALID");
+  const sharedRef = ref(db, "sharedRosters/" + token), sessionPath = "studentSessions/" + token + "/" + studentUid;
   const session = await firebaseRequest("read", sessionPath, () => get(ref(db, sessionPath)));
-  const studentId = session.exists() ? String(session.val()?.studentId || "") : "";
-  if (!studentId) throw new Error("Öğrenci bağlantısı gerekli.");
-  // Revalidate a remembered session with a server-acknowledged write. A cached
-  // offline read must not unlock a revoked class connection.
+  if (!session.exists() || String(session.val()?.studentId || "") !== "1") throw new Error("STUDENT_CODE_INVALID");
   if (!sessionConfirmed) await firebaseRequest("write", sessionPath, () => set(ref(db, sessionPath), session.val()));
-  const initialRoster = await firebaseRequest("read", `sharedRosters/${token}`, () => get(sharedRef));
-  if (!initialRoster.exists() || !studentId || !Object.values(initialRoster.val().students || {}).some(student => String(student.id) === studentId)) throw new Error("Öğrenci bağlantısı kaldırılmış.");
+  const initialRoster = await firebaseRequest("read", "sharedRosters/" + token, () => get(sharedRef));
+  const student = initialRoster.val()?.students?.[0];
+  if (!initialRoster.exists() || !student || String(student.id) !== "1") throw new Error("STUDENT_CODE_INVALID");
   if (generation !== studentConnectionGeneration) return;
   activeStudentRoster = token;
-  setLocalScope(`student-${token}-${studentId}`);
-  window.dispatchEvent(new CustomEvent("firebase-class-context",{detail:{teacherId:initialRoster.val().teacherId||initialRoster.val().ownerUid,classId:initialRoster.val().classId,className:initialRoster.val().className}}));
-  publishRoster(initialRoster.val().students);
-  publishWays(initialRoster.val().ways || defaultWays);
-  activateStudentIdentity(studentId);
-  try { localStorage.setItem("yildiz-student-roster-token", token); } catch { /* session remains in Firebase */ }
+  setLocalScope("student-" + token);
+  window.dispatchEvent(new CustomEvent("firebase-class-context", { detail: { teacherId: initialRoster.val().teacherId || initialRoster.val().ownerUid, classId: initialRoster.val().classId, className: initialRoster.val().className } }));
+  publishRoster([student]); publishWays(initialRoster.val().ways || defaultWays);
+  activateStudentIdentity("1");
+  try { localStorage.setItem("yildiz-student-roster-token", token); } catch { /* Anonymous Firebase session remains. */ }
   window.dispatchEvent(new CustomEvent("firebase-student-roster-ready", { detail: { token } }));
   rosterSubscription = onValue(sharedRef, snapshot => {
     if (generation !== studentConnectionGeneration) return;
-    if (!snapshot.exists() || !Object.values(snapshot.val().students || {}).some(student => String(student.id) === activeStudentId)) {
-      requireStudentConnection();
-      message("Öğrenci bağlantısı kaldırılmış. Öğretmeninden yeni kod iste.");
-      return;
+    const current = snapshot.val()?.students?.[0];
+    if (!snapshot.exists() || !current || String(current.id) !== "1") {
+      requireStudentConnection(); message("Öğrenci kodu artık geçerli değil. Öğretmeninden yeni kod iste."); return;
     }
     const shared = snapshot.val();
-    window.dispatchEvent(new CustomEvent("firebase-class-context",{detail:{teacherId:shared.teacherId||shared.ownerUid,classId:shared.classId,className:shared.className}}));
-    publishRoster(shared.students);
-    publishWays(shared.ways || defaultWays);
+    window.dispatchEvent(new CustomEvent("firebase-class-context", { detail: { teacherId: shared.teacherId || shared.ownerUid, classId: shared.classId, className: shared.className } }));
+    publishRoster([current]); publishWays(shared.ways || defaultWays);
   }, error => {
     if (generation !== studentConnectionGeneration) return;
-    requireStudentConnection();
-    message(`Yarış verisine erişilemedi (${error.code || "unknown"}). Öğretmen bağlantısını ve Firebase kurallarını kontrol et.`);
-    reportFirebaseError("listen", `sharedRosters/${token}`, error);
+    requireStudentConnection(); message("Yarış verisine erişilemedi. Kısa kodunu kontrol edip yeniden dene.");
+    reportFirebaseError("listen", "sharedRosters/" + token, error);
   });
 }
 
 async function watchStudentRoster(user) {
   if (!user) { requireStudentConnection(); return; }
   studentUid = user.uid;
-  let token = requestedRoster;
-  if (!token) { try { token = localStorage.getItem("yildiz-student-roster-token"); } catch { /* require a code */ } }
-  if (!token) { requireStudentConnection(); return; }
-  try { await connectStudentRoster(token); }
-  catch { requireStudentConnection(); message("Öğretmeninden aldığın kodu gir."); }
+  let code = "";
+  try { code = localStorage.getItem("yildiz-student-roster-token") || ""; } catch { /* Require the short code. */ }
+  if (!isValidStudentCode(code)) { requireStudentConnection(); return; }
+  try { await connectStudentRoster(code); } catch { requireStudentConnection(); }
 }
 
 window.raceCloud = {
@@ -474,7 +502,7 @@ window.raceCloud = {
   async renameClass(id,name){
     name=String(name||"").trim().slice(0,60);if(!teacherClasses[id]||!name)throw new Error("Sınıf adı gerekli.");
     const cls=teacherClasses[id],updates={[accountPath()+"/classes/"+id+"/name"]:name};
-    if(!testMode)updates["sharedRosters/"+cls.shareToken+"/className"]=name;
+    if(!testMode)for(const code of Object.values((await get(ref(db,classPath(id)))).val()?.studentAccessCodes||{}))if(isValidStudentCode(code))updates["sharedRosters/"+code+"/className"]=name;
     await update(ref(db),updates);teacherClasses[id].name=name;emitClasses();
   },
   async moveStudent(studentId,targetId,sourceId=activeClassId){
@@ -482,17 +510,19 @@ window.raceCloud = {
     if(!teacherClasses[targetId]||targetId===sourceId)throw new Error("Başka bir sınıf seç.");
     const src=(await get(ref(db,classPath(sourceId)))).val(),dest=(await get(ref(db,classPath(targetId)))).val();
     const student=(src.students||[]).find(s=>String(s.id)===String(studentId));if(!student)throw new Error("Öğrenci bulunamadı.");
+    const oldCode=src.studentAccessCodes?.[String(student.id)];
+    const oldProgress=!testMode&&oldCode?(await get(ref(db,"studentQuestionData/"+oldCode+"/1"))).val():null;
     const others=(src.students||[]).filter(s=>String(s.id)!==String(studentId)),target=dest.students||[];
     const newId=target.some(s=>String(s.id)===String(studentId))?Math.max(0,...target.map(s=>Number(s.id)||0))+1:student.id;
     target.push({...student,id:newId,classId:targetId,teacherId:teacherUid});
-    const changes={},cls=teacherClasses[sourceId],to=teacherClasses[targetId];
-    for(const [id,roster,codes,ways] of [[sourceId,others,reconcileStudentCodes(others,src.studentAccessCodes),src.ways],[targetId,target,reconcileStudentCodes(target,dest.studentAccessCodes),dest.ways]]) {
-      const c=teacherClasses[id];changes[classPath(id)+"/students"]=roster;changes[classPath(id)+"/studentAccessCodes"]=codes;
-      if(id===defaultClassId){changes[accountPath()+"/students"]=roster;changes[accountPath()+"/studentAccessCodes"]=codes;}
-      if(!testMode){changes["sharedRosters/"+c.shareToken]={ownerUid:teacherUid,teacherId:teacherUid,classId:id,className:c.name,students:roster,ways:ways||defaultWays};changes["studentCredentials/"+c.shareToken]={ownerUid:teacherUid,teacherId:teacherUid,classId:id,codes};await syncStudentCodeLookup(changes,c.shareToken,roster,codes);}
-    }
-    if(!testMode){const progress=(await get(ref(db,"studentQuestionData/"+cls.shareToken+"/"+student.id))).val();if(progress)changes["studentQuestionData/"+to.shareToken+"/"+newId]=progress;}
-    await update(ref(db),changes);return newId;
+    const sourceCodes={...(src.studentAccessCodes||{})};delete sourceCodes[String(student.id)];
+    const targetCodes=reconcileStudentCodes(target,dest.studentAccessCodes||{});
+    await saveClassRoster(sourceId,others,sourceCodes,{ways:src.ways||defaultWays});
+    await saveClassRoster(targetId,target,targetCodes,{ways:dest.ways||defaultWays});
+    const newCode=targetCodes[String(newId)];
+    if(oldProgress&&newCode)await set(ref(db,"studentQuestionData/"+newCode+"/1"),oldProgress);
+    if(sourceId===activeClassId)await switchClass(sourceId);
+    return newId;
   },
   async deleteClass(id,targetId){
     if(!teacherClasses[id]||Object.keys(teacherClasses).length<=1)throw new Error("Son sınıf silinemez.");
@@ -511,59 +541,41 @@ window.raceCloud = {
   },
   async rotateStudentCode(studentId) {
     if (!isTeacher || testMode || !teacherUid || !shareToken) throw new Error("Öğretmen hesabı bağlanmadı.");
-    const id = String(studentId);
+    const id=String(studentId),record=(await get(ref(db,classPath()))).val()||{};
     if (!studentAccessCodes[id]) throw new Error("Öğrenci bulunamadı.");
-    studentAccessCodes[id] = createStudentCode();
-    const teacherPath = classPath();
-    await firebaseRequest("write", teacherPath, () => update(ref(db, teacherPath), { studentAccessCodes }));
-    await publishStudentCredentials();
+    const codes={...studentAccessCodes,[id]:createStudentCode()};
+    await saveClassRoster(activeClassId,record.students||[],codes,{ways:record.ways||defaultWays});
     publishStudentCodes();
   },
-  async authorizeStudent(studentId, accessCode) {
-    if (isTeacher || !studentUid) throw new Error("Öğrenci bağlantısı henüz hazır değil.");
-    let token = activeStudentRoster || requestedRoster, id = String(studentId || "");
-    const parts = String(accessCode || "").trim().toUpperCase().split(":");
-    if (parts.length === 3) [token, id, accessCode] = parts;
-    else {
-      accessCode = parts[0];
-      if (!/^[A-Z2-9]{8}$/.test(accessCode)) throw new Error("STUDENT_CODE_INVALID");
-      const lookupPath = "studentCodeLookup/" + accessCode;
-      let lookupSnapshot;
-      try { lookupSnapshot = await firebaseRequest("read", lookupPath, () => get(ref(db, lookupPath))); }
-      catch (error) { if (error.code === "PERMISSION_DENIED") throw new Error("STUDENT_CODE_INVALID"); throw error; }
-      const lookup = lookupSnapshot.val();
-      if (!lookup || typeof lookup.rosterToken !== "string" || typeof lookup.studentId !== "string") throw new Error("STUDENT_CODE_INVALID");
-      token = lookup.rosterToken; id = lookup.studentId;
-    }
-    token = token?.toLowerCase();
-    if (!/^[a-f0-9]{32,64}$/.test(token || "") || !/^\d+$/.test(id) || !/^[A-Z2-9]{8}$/.test(accessCode)) throw new Error("STUDENT_CODE_INVALID");
+  async authorizeStudent(_studentId, accessCode) {
+    if (isTeacher || !studentUid) throw new Error("Öğrenci oturumu henüz hazır değil.");
+    const code = String(accessCode || "").trim().toUpperCase();
+    if (!isValidStudentCode(code)) throw new Error("STUDENT_CODE_INVALID");
     requireStudentConnection();
-    const path = "studentSessions/" + token + "/" + studentUid;
-    await firebaseRequest("write", path, () => set(ref(db, path), { studentId: id, accessCode }));
-    await connectStudentRoster(token, true);
-    return true;
-  },
-  getStudentConnectionCode(studentId, code) {
-    if (!isTeacher || testMode || !shareToken || studentAccessCodes[String(studentId)] !== code) return "";
-    return `${shareToken}:${studentId}:${code}`;
+    const path = "studentSessions/" + code + "/" + studentUid;
+    try {
+      // A single exact-path session write is the lookup. Rules validate the
+      // supplied code against this student's private credential.
+      await firebaseRequest("write", path, () => set(ref(db, path), { studentId: "1", accessCode: code }));
+      await connectStudentRoster(code, true);
+      return true;
+    } catch (error) {
+      if (error.code === "PERMISSION_DENIED") throw new Error("STUDENT_CODE_INVALID");
+      throw error;
+    }
   },
   async loadQuestionProgress() {
     if (isTeacher || !activeStudentRoster || !activeStudentId) return {};
-    const path = `studentQuestionData/${activeStudentRoster}/${activeStudentId}`;
+    const path = `studentQuestionData/${activeStudentRoster}/1`;
     const snapshot = await firebaseRequest("read", path, () => get(ref(db, path)));
     return snapshot.exists() ? { [activeStudentId]: snapshot.val() } : {};
   },
   async saveQuestionProgress(studentId, progress) {
     if (isTeacher || !activeStudentRoster || !studentUid || String(studentId) !== activeStudentId) throw new Error("Bu öğrenci profili için yetkin yok.");
-    const path = `studentQuestionData/${activeStudentRoster}/${activeStudentId}`;
+    const path = `studentQuestionData/${activeStudentRoster}/1`;
     await firebaseRequest("write", path, () => set(ref(db, path), progress));
   },
-  getShareUrl() {
-    if (testMode || !shareToken) return null;
-    const url = new URL(location.href);
-    url.search = `?roster=${encodeURIComponent(shareToken)}`;
-    return url.href;
-  },
+
 };
 window.dispatchEvent(new CustomEvent("firebase-cloud-ready", { detail: { appName: app.name, projectId: firebaseConfig.projectId } }));
 
@@ -653,7 +665,7 @@ window.addEventListener("firebase-student-code-rotate", event => {
 window.addEventListener("firebase-ways-save", async event => {
   const result = { ok: false };
   try {
-    if (!isTeacher || !teacherUid || !shareToken) throw new Error("Öğretmen bağlantısı hazır değil.");
+    if (!isTeacher || !teacherUid) throw new Error("Öğretmen oturumu hazır değil.");
     await publishTeacherData({ ways: event.detail });
     result.ok = true;
   } catch (error) {
@@ -682,15 +694,7 @@ window.addEventListener("firebase-season-save", async event => {
   catch (error) { seasons = previous; showWriteFailure("Tur sonuçları kaydedilemedi", error); }
 });
 
-window.addEventListener("firebase-share-copy", async () => {
-  const url = window.raceCloud.getShareUrl();
-  if (!url) return;
-  try {
-    await navigator.clipboard.writeText(url);
-    const toast = document.getElementById("toast");
-    if (toast) { toast.textContent = "Öğrenci bağlantısı kopyalandı."; toast.classList.add("show"); }
-  } catch { window.prompt("Öğrenci bağlantısını kopyala:", url); }
-});
+
 
 onAuthStateChanged(auth, async user => {
   if (teacherMode) {
@@ -740,7 +744,7 @@ onAuthStateChanged(auth, async user => {
   try { await watchStudentRoster(user); }
   catch (error) {
     message(`Öğrenci bağlantısı kurulamadı (${error.code || "unknown"}). Sayfayı yenileyip tekrar dene.`);
-    reportFirebaseError("student initialization", requestedRoster ? `sharedRosters/${requestedRoster}` : "class-race/defaultRosterToken", error);
+    reportFirebaseError("student initialization", "studentSessions/{shortCode}/{anonymousUid}", error);
   }
 });
 
