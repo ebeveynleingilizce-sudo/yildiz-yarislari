@@ -245,6 +245,7 @@ async function migrateClasses(data, teacherRef) {
   if(data.classSchemaVersion===1&&data.classData&&data.classes)return data;
   const id=makeToken();
   const result=await runTransaction(teacherRef,current=>{
+    if(!current)current=data;
     if(!current)return;
     if(current.classSchemaVersion===1)return current;
     const token=current.shareToken,students=(Array.isArray(current.students)?current.students:defaultStudents).map(s=>({...s,teacherId:teacherUid,classId:id}));
@@ -683,7 +684,8 @@ onAuthStateChanged(auth, async user => {
     catch (error) {
       isTeacher = false;
       showLogin(true);
-      message(`Öğretmen verisi açılamadı (${error.code || "unknown"}). Firebase bağlantı kayıtlarını kontrol et.`);
+      const errorDetail = error?.code && error.code !== "unknown" ? error.code : error?.message || "unknown";
+      message(`Öğretmen verisi açılamadı (${errorDetail}). Firebase bağlantı kayıtlarını kontrol et.`);
       reportFirebaseError("teacher initialization", `${testMode ? "testTeacherData" : "teacherData"}/${user.uid}`, error);
     }
     return;
@@ -705,3 +707,4 @@ onAuthStateChanged(auth, async user => {
     reportFirebaseError("student initialization", requestedRoster ? `sharedRosters/${requestedRoster}` : "class-race/defaultRosterToken", error);
   }
 });
+
