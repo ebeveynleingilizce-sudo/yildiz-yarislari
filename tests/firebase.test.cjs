@@ -51,7 +51,9 @@ test('a short code publishes a private one-student roster; removal revokes it wi
 });
 
 test('a clean anonymous student enters by short code only and cannot read other students or classes', async () => {
-  const c = client(''); await c.ready();
+  const teacher = client(); await teacher.ready();
+  await teacher.env.raceCloud.login('teacher-a@example.invalid', 'test-only-password');
+  const c = client('', teacher.storage); await c.ready();
   assert.ok(c.events.some(event => event.type === 'firebase-student-access-required'));
   assert.ok(!c.events.some(event => event.type === 'firebase-roster'));
   await assert.rejects(c.sdk.get(c.sdk.ref(null, 'sharedRosters')), { code: 'PERMISSION_DENIED' });
@@ -123,7 +125,9 @@ test('student entry has no special-link UI or query dependency', () => {
 });
 
 test('short-code paths remain private to the owning teacher and are not an enumerable lookup', async () => {
-  const c = client(''); await c.ready();
+  const teacher = client(); await teacher.ready();
+  await teacher.env.raceCloud.login('teacher-a@example.invalid', 'test-only-password');
+  const c = client('', teacher.storage); await c.ready();
   await c.env.raceCloud.authorizeStudent('', 'TESTCODE');
   await assert.rejects(c.sdk.get(c.sdk.ref(null, 'sharedRosters/OTHER?')), { code: 'PERMISSION_DENIED' });
   await assert.rejects(c.sdk.set(c.sdk.ref(null, 'studentSessions/TESTCODE/anonymous-test'), { studentId: '2', accessCode: 'TESTCODE' }), { code: 'PERMISSION_DENIED' });

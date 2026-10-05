@@ -4,7 +4,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const allowed = new Set(['index.html', 'classes-ui.js', 'pwa.js', 'questions.js', 'service-worker.js',
   'manifest-student.webmanifest', 'manifest-teacher.webmanifest', 'manifest-teacher-test.webmanifest',
-  'app-icon.svg', 'teacher-icon.svg', 'minecraft-test-icon.svg']);
+  'app-icon.svg', 'teacher-icon.svg', 'minecraft-test-icon.svg', 'nether-portal.svg']);
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
 http.createServer((request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1:4179');

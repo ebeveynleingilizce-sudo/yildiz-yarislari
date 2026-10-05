@@ -6,7 +6,7 @@ function createFirebaseSdk(env, rules) {
   const seed = {};
   for (const account of ['a', 'b']) {
     const students = [1, 2].map(id => ({ id, name: account === 'a' ? `Test Öğrenci ${id === 1 ? 'A' : 'B'}` : `Öğretmen B Öğrenci ${id}`, emoji: id === 1 ? 'mc-steve' : 'mc-alex', stars: 0, xp: 0, lifetimeStars: 0 }));
-    const codes = { 1: account === 'a' ? 'TESTCODE' : 'BCODEONE', 2: account === 'a' ? 'OTHERCODE' : 'BCODETWO' };
+    const codes = { 1: account === 'a' ? 'TESTCODE' : 'BCODEONE', 2: account === 'a' ? 'OTHERCD8' : 'BCODETWO' };
     seed.teacherData ??= {}; seed.sharedRosters ??= {}; seed.studentCredentials ??= {};
     seed.teacherData[`teacher-${account}`] = { shareToken: tokens[account], students, studentAccessCodes: codes, ways: [], seasons: [], starHistory: [] };
     seed.sharedRosters[tokens[account]] = { ownerUid: `teacher-${account}`, students, ways: [] };

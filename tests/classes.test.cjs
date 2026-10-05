@@ -51,14 +51,14 @@ test('class tokens isolate classmates and progress; moves preserve XP and revoke
  await c.env.raceCloud.write([{id:1,name:'Ahmet',stars:7,xp:12,lifetimeStars:22,emoji:'mc-steve'},{id:2,name:'Mehmet',stars:2,xp:3,lifetimeStars:8,emoji:'mc-alex'}]);
  const b=await c.env.raceCloud.createClass('6/B');await c.env.raceCloud.write([{id:1,name:'Ayşe',stars:0,xp:0,lifetimeStars:0,emoji:'mc-alex'},{id:2,name:'Zeynep',stars:0,xp:0,lifetimeStars:0,emoji:'mc-steve'}]);
  const data=c.env.__testCloud.data().teacherData['teacher-a'],tokenA=data.classes[a].shareToken;
- const student=client('',c.storage);await student.ready();await student.env.raceCloud.authorizeStudent('',tokenA+':1:'+data.classData[a].studentAccessCodes[1]);
+ const student=client('',c.storage);await student.ready();await student.env.raceCloud.authorizeStudent('',data.classData[a].studentAccessCodes[1]);
  await assert.rejects(student.sdk.get(student.sdk.ref(null,'sharedRosters/'+b.shareToken)),{code:'PERMISSION_DENIED'});
  await assert.rejects(student.sdk.get(student.sdk.ref(null,'teacherData/teacher-a/classData/'+b.classId)),{code:'PERMISSION_DENIED'});
  await student.env.raceCloud.saveQuestionProgress('1',{xpEarned:4,solvedQuestionIds:['q1','q2','q3','q4'],testHistory:[{id:'old-test'}]});
  await c.env.raceCloud.selectClass(a);const movedId=await c.env.raceCloud.moveStudent('1',b.classId);
  const moved=c.env.__testCloud.data();const record=moved.teacherData['teacher-a'].classData[b.classId].students.find(s=>s.name==='Ahmet');
  assert.equal(record.stars,7);assert.equal(record.xp,12);assert.equal(record.lifetimeStars,22);assert.notEqual(movedId,1);
- assert.equal(moved.studentQuestionData[b.shareToken][movedId].xpEarned,4);
+ assert.equal(moved.studentQuestionData[moved.teacherData['teacher-a'].classData[b.classId].studentAccessCodes[movedId]]['1'].xpEarned,4);
  await assert.rejects(student.sdk.get(student.sdk.ref(null,'sharedRosters/'+tokenA)),{code:'PERMISSION_DENIED'});
  await assert.rejects(c.env.raceCloud.deleteClass(b.classId),/taşınacağı/);
  await c.env.raceCloud.deleteClass(b.classId,a);

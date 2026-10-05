@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 88" shape-rendering="crispEdges">
+  <defs>
+    <pattern id="obsidian" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#09070e"/>
+      <path d="M1 2h6v2H3v3H0V5h1zm8 8h5v2h-3v3H8v-2h1zM12 0h4v2h-4zM0 12h4v2H0z" fill="#271039"/>
+      <path d="M4 1h3v1H4zM10 8h4v1h-4zM2 6h2v1H2zM9 14h2v1H9z" fill="#48205f"/>
+      <path d="M7 5h4v2H7zM3 10h2v2H3zM14 4h2v2h-2z" fill="#160e21"/>
+    </pattern>
+    <pattern id="nether-swirl" width="20" height="20" patternUnits="userSpaceOnUse">
+      <rect width="20" height="20" fill="#870bb9"/>
+      <path d="M0 4h4V0h8v4h4v4h4v8h-4v4H8v-4H4v-4H0z" fill="#ac15d2"/>
+      <path d="M4 6h4V4h6v4h2v6h-4v2H8v-4H6V8h4v2h2" fill="none" stroke="#df2aea" stroke-width="2"/>
+      <path d="M0 18h4v2H0zM18 2h2v4h-2zM10 10h2v2h-2z" fill="#f34ee8"/>
+      <path d="M1 0h2v2H1zM17 16h2v2h-2z" fill="#621084"/>
+    </pattern>
+  </defs>
+  <path d="M10 72h44l10 10v6H0v-6z" fill="url(#obsidian)"/>
+  <path d="M10 72h44l10 10H0z" fill="#351027"/>
+  <path d="M10 75h44l7 7H3z" fill="url(#obsidian)"/>
+  <rect x="10" width="44" height="78" fill="url(#obsidian)"/>
+  <rect x="22" y="16" width="20" height="48" fill="url(#nether-swirl)"/>
+  <path d="M22 16h20v48H22z" fill="none" stroke="#5a146d" stroke-width="1"/>
+</svg>
