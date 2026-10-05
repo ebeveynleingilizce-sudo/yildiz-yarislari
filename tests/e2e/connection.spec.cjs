@@ -12,13 +12,13 @@ test('new student and a class link alone show only the connection screen', async
   }
 });
 
-test('a short student code explains that the full copied connection code is required', async ({ page }) => {
+test('short student code alone opens the assigned student profile', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => window.__testCloud?.ready);
   await page.locator('#studentAccessCode').fill('TESTCODE');
   await page.locator('#studentAccessSubmit').click();
-  await expect(page.locator('#studentAccessMessage')).toContainText('tek başına yeterli değil');
-  await expect(page.locator('#studentAccessOverlay')).toHaveClass(/open/);
+  await expect(page.locator('#studentAccessOverlay')).not.toHaveClass(/open/);
+  await expect(page.locator('#lanes')).toContainText('Test Öğrenci A');
 });
 
 test('connection selects teacher A, blocks teacher B at database paths, and survives refresh', async ({ page }) => {
@@ -117,17 +117,17 @@ test('rotating a student code revokes a connected session', async ({ page, conte
   await teacher.close();
 });
 
-test('teacher copies the existing class token and student code as one connection code', async ({ page }) => {
+test('teacher exposes short codes without student links', async ({ page }) => {
   await loginTeacher(page);
   await page.evaluate(() => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { window.__copiedCode = text; } } });
   });
   await page.locator('[data-copy-code="1"]').click();
-  await expect.poll(() => page.evaluate(() => window.__copiedCode)).toBe(`${'a'.repeat(32)}:1:TESTCODE`);
-  await expect(page.locator('[data-student-id="1"] .student-full-connection-code')).toHaveText(`${'a'.repeat(32)}:1:TESTCODE`);
-  await expect(page.locator('#teacherShareUrl')).toHaveAttribute('href', /\?roster=a{32}$/);
+  await expect.poll(() => page.evaluate(() => window.__copiedCode)).toBe('TESTCODE');
+  await expect(page.locator('[data-student-id="1"] .student-code-row')).toContainText('TESTCODE');
+  await expect(page.locator('[data-copy-student-link]')).toHaveCount(0);
+  await expect(page.locator('#copyStudentLink')).toHaveCount(0);
 });
-
 test('rejected removal reports failure and restores the confirmed roster', async ({ page }) => {
   await loginTeacher(page);
   await page.evaluate(() => { window.__testCloud.failNextWrite = true; });
