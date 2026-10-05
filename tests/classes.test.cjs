@@ -27,6 +27,12 @@ function client(search = '?teacher=1', storage = new Map()) {
   return { env, sdk, events, storage, ready: () => Promise.all(env.__testCloud.pending) };
 }
 
+test('legacy migration recovers when the transaction first receives a null snapshot',async()=>{
+ const c=client();await c.ready();c.env.__testCloud.transactionNullOnce=true;
+ await c.env.raceCloud.login('tunc@test.com','test-only-password');
+ const migrated=c.env.__testCloud.data().teacherData['teacher-a'];
+ assert.equal(migrated.classSchemaVersion,1);assert.ok(migrated.classData[migrated.defaultClassId]);
+});
 test('legacy migration preserves codes, student IDs, XP and seasons and is idempotent',async()=>{
  const c=client();await c.ready();const original=c.env.__testCloud.data().teacherData['teacher-a'];
  await c.env.raceCloud.login('tunc@test.com','test-only-password');
@@ -68,3 +74,4 @@ test('another teacher may use the same class name without reading or mutating th
  await assert.rejects(c.sdk.get(c.sdk.ref(null,'teacherData/teacher-a/classData/'+a.classId)),{code:'PERMISSION_DENIED'});
  await assert.rejects(c.sdk.update(c.sdk.ref(null,'sharedRosters/'+a.shareToken),{ownerUid:'teacher-b'}),{code:'PERMISSION_DENIED'});
 });
+
